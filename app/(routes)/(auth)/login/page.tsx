@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { useState, useEffect } from 'react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
@@ -9,11 +9,18 @@ import Link from 'next/link';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // セッション状態をログに出力
+  useEffect(() => {
+    console.log('セッションステータス:', status);
+    console.log('セッションデータ:', session);
+  }, [session, status]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +43,16 @@ export default function LoginPage() {
         setError('電話番号またはパスワードが正しくありません');
         console.error('ログインエラー:', result.error);
       } else {
-        router.push(callbackUrl);
+        console.log('ログイン成功、リダイレクト先:', callbackUrl);
+        
+        // リダイレクト前にセッション状態を再確認
+        setTimeout(() => {
+          console.log('リダイレクト前の最終セッション状態:', {
+            status,
+            session,
+          });
+          router.push(callbackUrl);
+        }, 500);
       }
     } catch (error) {
       setError('ログイン中にエラーが発生しました');

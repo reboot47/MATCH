@@ -3,7 +3,7 @@ const nextConfig = {
   experimental: {
     // 最新版Next.jsとの互換性問題を修正
     serverActions: {
-      allowedOrigins: ['localhost:3002'],
+      allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002'],
     },
   },
   // 外部パッケージの設定
@@ -45,7 +45,6 @@ const nextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
-        port: '3000',
         pathname: '/uploads/**',
       },
       {

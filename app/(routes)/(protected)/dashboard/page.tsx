@@ -3,10 +3,17 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+
+  // セッション状態をログに出力
+  useEffect(() => {
+    console.log('ダッシュボード - セッションステータス:', status);
+    console.log('ダッシュボード - セッションデータ:', session);
+  }, [session, status]);
 
   return (
     <div className="min-h-screen bg-gray-50">

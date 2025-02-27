@@ -113,6 +113,10 @@ export const authOptions: AuthOptions = {
       return session;
     },
   },
+  domain: process.env.DOMAIN,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+  },
   debug: process.env.NODE_ENV === 'development',
 };
 
