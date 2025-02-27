@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
@@ -10,6 +10,10 @@ import axios from 'axios';
 export default function ProfileEditPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  
+  // ファイル選択用のref
+  const mainPhotoInputRef = useRef<HTMLInputElement>(null);
+  const subPhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [mainPhoto, setMainPhoto] = useState<string | null>(null);
   const [mainPhotoId, setMainPhotoId] = useState<string | null>(null);
@@ -43,6 +47,27 @@ export default function ProfileEditPage() {
       window.removeEventListener('focus', handleRouteChange);
     };
   }, [session, status]);
+  
+  // ページロード時にフォーム送信イベントをキャンセルする処理
+  useEffect(() => {
+    const preventFormSubmit = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
+    // フォーム要素にイベントリスナーを追加
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('submit', preventFormSubmit);
+    });
+
+    // クリーンアップ関数
+    return () => {
+      document.querySelectorAll('form').forEach(form => {
+        form.removeEventListener('submit', preventFormSubmit);
+      });
+    };
+  }, []);
   
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -80,10 +105,16 @@ export default function ProfileEditPage() {
   
   // メイン写真のアップロード処理
   const handleMainPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    e.stopPropagation();  // 追加：イベント伝播の停止
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
-    if (!e.target.files || !e.target.files[0]) return;
+    // ファイルが選択されていない場合は何もしない
+    if (!e.target.files || !e.target.files[0]) {
+      console.log('ファイルが選択されていません');
+      return;
+    }
     
     const file = e.target.files[0];
     
@@ -110,20 +141,25 @@ export default function ProfileEditPage() {
     // ローディング状態の設定
     setSaving(true);
     
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('isMain', 'true');
-    
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('isMain', 'true');
+      
+      console.log('メイン画像アップロード開始...');
+      
       const response = await axios.post('/api/users/photos', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
+      console.log('メイン画像アップロード応答:', response.data);
+      
       if (response.data?.url) {
         setMainPhoto(response.data.url);
         setMainPhotoId(response.data.id);
+        console.log('メイン画像が更新されました', response.data.url);
       }
     } catch (error) {
       console.error('写真アップロードエラー:', error);
@@ -141,15 +177,25 @@ export default function ProfileEditPage() {
       alert(errorMessage);
     } finally {
       setSaving(false);
+      // 入力フィールドをリセット
+      if (mainPhotoInputRef.current) {
+        mainPhotoInputRef.current.value = '';
+      }
     }
   };
   
   // サブ写真のアップロード処理
   const handleSubPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    e.stopPropagation();  // 追加：イベント伝播の停止
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     
-    if (!e.target.files || !e.target.files[0]) return;
+    // ファイルが選択されていない場合は何もしない
+    if (!e.target.files || !e.target.files[0]) {
+      console.log('ファイルが選択されていません');
+      return;
+    }
     
     const file = e.target.files[0];
     
@@ -193,7 +239,7 @@ export default function ProfileEditPage() {
       
       if (response.data?.url) {
         setSubPhotos([...subPhotos, { id: response.data.id, url: response.data.url }]);
-        alert('サブ写真を追加しました');
+        console.log('サブ画像が追加されました', response.data.url);
       }
     } catch (error) {
       console.error('写真アップロードエラー:', error);
@@ -211,6 +257,10 @@ export default function ProfileEditPage() {
       alert(errorMessage);
     } finally {
       setSaving(false);
+      // 入力フィールドをリセット
+      if (subPhotoInputRef.current) {
+        subPhotoInputRef.current.value = '';
+      }
     }
   };
   
@@ -337,16 +387,14 @@ export default function ProfileEditPage() {
   const openMainPhotoDialog = (e: React.MouseEvent) => {
     e.preventDefault();
     // input要素を参照して手動でクリックする
-    const fileInput = document.getElementById('mainPhotoUpload') as HTMLInputElement;
-    if (fileInput) fileInput.click();
+    if (mainPhotoInputRef.current) mainPhotoInputRef.current.click();
   };
   
   // サブ写真用ファイル選択ダイアログを手動で開く
   const openSubPhotoDialog = (e: React.MouseEvent) => {
     e.preventDefault();
     // input要素を参照して手動でクリックする
-    const fileInput = document.getElementById('subPhotoUpload') as HTMLInputElement;
-    if (fileInput) fileInput.click();
+    if (subPhotoInputRef.current) subPhotoInputRef.current.click();
   };
   
   if (status === 'loading' || loading) {
@@ -373,11 +421,13 @@ export default function ProfileEditPage() {
         </div>
       </header>
       
-      {/* 保存中オーバーレイ */}
+      {/* 保存中のオーバーレイ */}
       {saving && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded-md shadow-lg">
-            <p className="text-center">保存中...</p>
+          <div className="bg-white p-6 rounded-md shadow-lg text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+            <p className="text-lg font-medium">保存中...</p>
+            <p className="text-sm text-gray-500 mt-2">しばらくお待ちください</p>
           </div>
         </div>
       )}
@@ -407,6 +457,7 @@ export default function ProfileEditPage() {
                   className="hidden"
                   accept="image/*"
                   onChange={handleMainPhotoUpload}
+                  ref={mainPhotoInputRef}
                 />
                 <button 
                   onClick={openMainPhotoDialog}
@@ -426,13 +477,13 @@ export default function ProfileEditPage() {
                   className="hidden"
                   accept="image/*"
                   onChange={handleMainPhotoUpload}
+                  ref={mainPhotoInputRef}
                 />
                 <div className="flex gap-2">
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
-                      const fileInput = document.getElementById('mainPhotoReplace') as HTMLInputElement;
-                      if (fileInput) fileInput.click();
+                      if (mainPhotoInputRef.current) mainPhotoInputRef.current.click();
                     }}
                     className="bg-white text-gray-700 rounded-full p-2 shadow"
                   >
@@ -501,6 +552,7 @@ export default function ProfileEditPage() {
                   className="hidden"
                   accept="image/*"
                   onChange={handleSubPhotoUpload}
+                  ref={subPhotoInputRef}
                 />
                 <button 
                   onClick={openSubPhotoDialog}
