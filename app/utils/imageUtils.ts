@@ -20,7 +20,10 @@ export const getOptimizedImageUrl = (
     crop?: 'fill' | 'scale' | 'fit' | 'thumb';
   } = {}
 ): string => {
-  if (!originalUrl) return '';
+  // デフォルト画像のパス
+  const defaultImagePath = '/images/default-avatar.png';
+  
+  if (!originalUrl) return defaultImagePath;
   
   // オブジェクトの場合、URLプロパティを取得
   if (typeof originalUrl === 'object' && originalUrl !== null) {
@@ -33,14 +36,19 @@ export const getOptimizedImageUrl = (
       originalUrl = originalUrl.image;
     } else {
       console.warn('有効なURL情報がオブジェクトから取得できませんでした', originalUrl);
-      return '';
+      return defaultImagePath;
     }
   }
   
-  // originalUrlが文字列でない場合は空文字を返す
+  // originalUrlが文字列でない場合はデフォルト画像を返す
   if (typeof originalUrl !== 'string') {
     console.warn('有効なURLが指定されていません', originalUrl);
-    return '';
+    return defaultImagePath;
+  }
+  
+  // 空文字列の場合もデフォルト画像を返す
+  if (originalUrl === '') {
+    return defaultImagePath;
   }
   
   // Base64データURIの場合はそのまま返す
@@ -121,6 +129,79 @@ export const getThumbnailUrl = (url: string): string => {
     crop: 'thumb',
     format: 'auto'
   });
+};
+
+/**
+ * 動画のサムネイルURLを取得する
+ * @param videoUrl 動画のURL
+ * @returns サムネイル画像のURL
+ */
+export const getVideoThumbnailUrl = (videoUrl: string | any): string => {
+  // まず、オブジェクトからサムネイルURLを取得する機能を追加
+  if (typeof videoUrl === 'object' && videoUrl !== null) {
+    // オブジェクトにthumbnailUrlプロパティがある場合、それを優先的に使用
+    if (videoUrl.thumbnailUrl) {
+      return videoUrl.thumbnailUrl;
+    }
+    
+    // 通常のURLプロパティを取得
+    if (videoUrl.url) {
+      videoUrl = videoUrl.url;
+    } else {
+      console.warn('有効な動画URL情報がオブジェクトから取得できませんでした', videoUrl);
+      return '/images/default-video-thumbnail.jpg';
+    }
+  }
+
+  if (!videoUrl) {
+    return '/images/default-video-thumbnail.jpg';
+  }
+
+  // サムネイルURLが既に存在する場合はそのまま使用（文字列として渡された場合）
+  if (typeof videoUrl === 'string' && videoUrl.includes('/thumbnail_')) {
+    return videoUrl;
+  }
+
+  // YouTubeの場合
+  const youtubeMatch = typeof videoUrl === 'string' && videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+  if (youtubeMatch && youtubeMatch[1]) {
+    return `https://img.youtube.com/vi/${youtubeMatch[1]}/mqdefault.jpg`;
+  }
+
+  // Vimeoの場合
+  const vimeoMatch = typeof videoUrl === 'string' && videoUrl.match(/vimeo\.com\/(?:.*\/)?(?:videos\/)?([0-9]+)(?:.*)?$/);
+  if (vimeoMatch && vimeoMatch[1]) {
+    // Vimeoはサムネイルを取得するためにAPIが必要なので、ここではプレースホルダーを返す
+    return '/images/vimeo-placeholder.jpg';
+  }
+
+  // ローカルビデオファイルの場合
+  if (typeof videoUrl === 'string') {
+    const lowerCaseUrl = videoUrl.toLowerCase();
+    
+    // Cloudinaryの動画URLの場合、対応するサムネイルURLを生成
+    if (lowerCaseUrl.includes('cloudinary.com') && 
+        (lowerCaseUrl.includes('/video/upload/') || lowerCaseUrl.includes('/videos/'))) {
+      // サムネイルURLパスを生成（動画のパスから派生）
+      return videoUrl.replace(/\/video\/upload\//, '/video/upload/c_thumb,w_500,h_500,g_auto/');
+    }
+    
+    if (lowerCaseUrl.startsWith('/test.mov') || lowerCaseUrl.endsWith('.mov')) {
+      return '/images/mov-icon.jpg';
+    }
+    
+    if (lowerCaseUrl.startsWith('/test.mp4') || lowerCaseUrl.endsWith('.mp4')) {
+      return '/images/mp4-icon.jpg';
+    }
+    
+    // その他のビデオファイル
+    if (lowerCaseUrl.match(/\.(mp4|mov|webm|ogg|avi|wmv|flv|mkv)(\?.*)?$/i)) {
+      return '/images/video-icon.jpg';
+    }
+  }
+
+  // 不明な場合はデフォルトのサムネイルを返す
+  return '/images/default-video-thumbnail.jpg';
 };
 
 /**
