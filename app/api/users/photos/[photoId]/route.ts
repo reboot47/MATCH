@@ -53,34 +53,36 @@ export async function DELETE(
       if (photo.url) {
         // Cloudinary URLからパブリックIDを抽出
         // 例: https://res.cloudinary.com/CLOUD_NAME/image/upload/v1234567890/folder/public_id.jpg
-        // URLパターンを解析して適切なパブリックIDを取得
         let publicId = '';
         
-        // Cloudinaryの一般的なURL形式を処理
-        if (photo.url.includes('/upload/')) {
-          const uploadIndex = photo.url.indexOf('/upload/');
-          if (uploadIndex !== -1) {
-            // /upload/ 以降の部分を取得
-            const afterUpload = photo.url.substring(uploadIndex + 8); // 8 = '/upload/'.length
-            
-            // バージョン番号を削除 (v1234567890/ のようなパターン)
-            const withoutVersion = afterUpload.replace(/v\d+\//, '');
-            
-            // 拡張子を削除
-            publicId = withoutVersion.replace(/\.[^.]+$/, '');
-          }
+        const url = photo.url;
+        const urlParts = url.split('/');
+        const fileNameWithExt = urlParts[urlParts.length - 1];
+        const fileName = fileNameWithExt.split('.')[0];
+        
+        // folder/filename 形式で取得
+        const folderIndex = url.indexOf('/upload/') + 8; // '/upload/'.length = 8
+        if (folderIndex !== -1) {
+          const pathAfterUpload = url.substring(folderIndex);
+          // バージョン番号 (v1234567890/) があれば削除
+          publicId = pathAfterUpload.replace(/^v\d+\//, '').replace(/\.[^/.]+$/, '');
         } else {
-          // フォールバック: 最後のパスコンポーネントを使用
-          const urlParts = photo.url.split('/');
-          const lastPart = urlParts[urlParts.length - 1];
-          publicId = lastPart.split('.')[0];
+          // フォールバック: ファイル名のみを使用
+          publicId = fileName;
         }
         
         console.log('Deleting from Cloudinary. PublicID:', publicId);
-        await cloudinary.uploader.destroy(publicId);
+        
+        try {
+          const result = await cloudinary.uploader.destroy(publicId);
+          console.log('Cloudinary削除結果:', result);
+        } catch (cloudinaryError) {
+          console.error('Cloudinary削除エラー:', cloudinaryError);
+          // Cloudinaryでのエラーはログに記録するが、処理は続行
+        }
       }
     } catch (cloudinaryError) {
-      console.error('Cloudinary削除エラー:', cloudinaryError);
+      console.error('Cloudinary処理エラー:', cloudinaryError);
       // Cloudinaryでのエラーがあってもデータベースからは削除を続行
     }
     

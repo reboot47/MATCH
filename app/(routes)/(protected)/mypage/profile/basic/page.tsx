@@ -33,6 +33,7 @@ const educations = [
 ];
 
 type BasicProfileData = {
+  name?: string;
   gender?: string;
   birthdate?: string;
   location?: string;
@@ -65,6 +66,7 @@ export default function BasicProfileEditPage() {
       
       // 必要なプロフィールデータを設定
       setProfileData({
+        name: userData.name || '',
         gender: userData.gender || '',
         birthdate: userData.birthdate || '',
         location: userData.location || '',
@@ -172,6 +174,18 @@ export default function BasicProfileEditPage() {
           transition={{ duration: 0.3, delay: 0.1 }}
           className="bg-white rounded-lg shadow-sm overflow-hidden"
         >
+          {/* 名前入力 */}
+          <div className="p-4 border-b">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">名前</h3>
+            <input
+              type="text"
+              value={profileData.name || ''}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              placeholder="名前を入力してください"
+              className="w-full p-3 border rounded-md"
+            />
+          </div>
+
           {/* 性別選択 */}
           <div className="p-4 border-b">
             <h3 className="text-sm font-medium text-gray-700 mb-2">性別</h3>

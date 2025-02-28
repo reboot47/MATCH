@@ -42,7 +42,9 @@ export async function GET(
         id: true,
         url: true,
         isMain: true,
-        createdAt: true
+        createdAt: true,
+        type: true,
+        thumbnailUrl: true
       },
       orderBy: {
         createdAt: 'desc',

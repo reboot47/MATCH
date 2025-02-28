@@ -15,3 +15,13 @@ body {
   color: #000;
   background: #fff;
 }
+
+/* カスタム追加スタイル */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari, Opera */
+}

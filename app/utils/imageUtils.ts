@@ -11,7 +11,7 @@
  * @returns 最適化されたURL
  */
 export const getOptimizedImageUrl = (
-  originalUrl: string, 
+  originalUrl: string | any, 
   options: {
     width?: number;
     height?: number;
@@ -21,6 +21,27 @@ export const getOptimizedImageUrl = (
   } = {}
 ): string => {
   if (!originalUrl) return '';
+  
+  // オブジェクトの場合、URLプロパティを取得
+  if (typeof originalUrl === 'object' && originalUrl !== null) {
+    // 写真オブジェクトからURLを抽出
+    if (originalUrl.url) {
+      originalUrl = originalUrl.url;
+    } else if (originalUrl.imageUrl) {
+      originalUrl = originalUrl.imageUrl;
+    } else if (originalUrl.image) {
+      originalUrl = originalUrl.image;
+    } else {
+      console.warn('有効なURL情報がオブジェクトから取得できませんでした', originalUrl);
+      return '';
+    }
+  }
+  
+  // originalUrlが文字列でない場合は空文字を返す
+  if (typeof originalUrl !== 'string') {
+    console.warn('有効なURLが指定されていません', originalUrl);
+    return '';
+  }
   
   // Base64データURIの場合はそのまま返す
   if (originalUrl.startsWith('data:')) {

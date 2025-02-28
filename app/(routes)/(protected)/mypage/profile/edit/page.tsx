@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { FiChevronLeft, FiChevronRight, FiPlus, FiInfo } from 'react-icons/fi';
+import { FaImage, FaVideo } from 'react-icons/fa';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { VideoThumbnail } from '../../photos/components/VideoThumbnail';
+
+// VideoThumbnailコンポーネントをインポート
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -15,7 +19,14 @@ export default function ProfileEditPage() {
   
   const [mainPhoto, setMainPhoto] = useState<string | null>(null);
   const [mainPhotoId, setMainPhotoId] = useState<string | null>(null);
-  const [subPhotos, setSubPhotos] = useState<{id: string, url: string}[]>([]);
+  const [mainPhotoType, setMainPhotoType] = useState<'image' | 'video'>('image');
+  const [mainPhotoThumbnailUrl, setMainPhotoThumbnailUrl] = useState<string | null>(null);
+  const [subPhotos, setSubPhotos] = useState<{
+    id: string, 
+    url: string, 
+    type?: 'image' | 'video',
+    thumbnailUrl?: string
+  }[]>([]);
   const [appealTags, setAppealTags] = useState<string[]>([]);
   const [tweet, setTweet] = useState('');
   const [purpose, setPurpose] = useState('');
@@ -69,9 +80,15 @@ export default function ProfileEditPage() {
         // 画像のセットアップ
         setMainPhoto(mainPhotoData?.url || null);
         setMainPhotoId(mainPhotoData?.id || null);
+        setMainPhotoType(mainPhotoData?.type || 'image');
+        setMainPhotoThumbnailUrl(mainPhotoData?.thumbnailUrl || null);
+        
+        // サブ写真の設定（タイプとサムネイル情報も保存）
         setSubPhotos(subPhotoData.map((photo: any) => ({
           id: photo.id,
-          url: photo.url
+          url: photo.url,
+          type: photo.type || 'image',
+          thumbnailUrl: photo.thumbnailUrl
         })));
         
         // アピールタグ
@@ -210,27 +227,57 @@ export default function ProfileEditPage() {
           <div className="flex justify-center">
             <div 
               className="relative w-48 h-48 bg-gray-200 rounded-lg overflow-hidden cursor-pointer group"
-              onClick={() => router.push('/mypage/photos')}
             >
               {mainPhoto ? (
                 <>
-                  <Image 
-                    src={mainPhoto} 
-                    alt="プロフィール写真" 
-                    fill={true}
-                    style={{ objectFit: 'cover' }}
-                    className="group-hover:opacity-80 transition-opacity"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 flex items-center justify-center transition-all">
-                    <div className="text-white opacity-0 group-hover:opacity-100 text-center p-2">
-                      <p className="font-bold">写真管理へ</p>
+                  {mainPhotoType === 'video' ? (
+                    <div className="relative w-full h-full">
+                      <VideoThumbnail 
+                        url={mainPhoto}
+                        thumbnailUrl={mainPhotoThumbnailUrl || undefined}
+                        className="w-full h-full"
+                        clickToPlay={true}
+                      />
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <button 
+                          onClick={() => router.push('/mypage/photos')}
+                          className="bg-white bg-opacity-90 p-2 rounded-full shadow-md"
+                          title="写真管理へ"
+                        >
+                          <FiPlus size={16} className="text-teal-500" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <Image 
+                        src={mainPhoto} 
+                        alt="プロフィール写真" 
+                        fill={true}
+                        style={{ objectFit: 'cover' }}
+                        className="group-hover:opacity-80 transition-opacity"
+                      />
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <button 
+                          onClick={() => router.push('/mypage/photos')}
+                          className="bg-white bg-opacity-90 p-2 rounded-full shadow-md"
+                          title="写真管理へ"
+                        >
+                          <FiPlus size={16} className="text-teal-500" />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 group-hover:bg-gray-200 transition-all">
-                  <FiPlus className="text-gray-500 text-4xl mb-2" />
-                  <p className="text-sm text-gray-600">写真管理へ</p>
+                  <button 
+                    onClick={() => router.push('/mypage/photos')}
+                    className="flex flex-col items-center justify-center w-full h-full"
+                  >
+                    <FiPlus size={24} className="text-teal-400 mb-1" />
+                    <p className="text-xs text-gray-600">写真管理へ</p>
+                  </button>
                 </div>
               )}
             </div>
@@ -271,24 +318,50 @@ export default function ProfileEditPage() {
                   transition={{ duration: 0.2 }}
                   layout
                 >
-                  <Image 
-                    src={photo.url}
-                    alt={`サブ写真 ${index + 1}`}
-                    fill={true}
-                    style={{ objectFit: 'cover' }}
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push('/mypage/photos')}
-                        className="bg-white text-teal-500 p-2 rounded-full shadow"
-                        title="写真管理へ"
-                      >
-                        <FiInfo size={16} />
-                      </button>
+                  {photo.type === 'video' ? (
+                    <div className="relative w-full h-full">
+                      <VideoThumbnail 
+                        url={photo.url}
+                        thumbnailUrl={photo.thumbnailUrl}
+                        className="w-full h-full"
+                        clickToPlay={true}
+                      />
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push('/mypage/photos');
+                          }}
+                          className="bg-white bg-opacity-90 p-1 rounded-full shadow-md"
+                          title="写真管理へ"
+                        >
+                          <FiPlus size={14} className="text-teal-500" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="relative w-full h-full">
+                      <Image 
+                        src={photo.url}
+                        alt={`サブ写真 ${index + 1}`}
+                        fill={true}
+                        style={{ objectFit: 'cover' }}
+                        className="object-cover"
+                      />
+                      <div className="absolute bottom-2 right-2 z-10">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push('/mypage/photos');
+                          }}
+                          className="bg-white bg-opacity-90 p-1 rounded-full shadow-md"
+                          title="写真管理へ"
+                        >
+                          <FiPlus size={14} className="text-teal-500" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>

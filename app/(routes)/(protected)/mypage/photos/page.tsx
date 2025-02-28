@@ -14,11 +14,14 @@ import {
   FaImage,
   FaVideo
 } from 'react-icons/fa';
+import { MdSort } from 'react-icons/md';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import Image from 'next/image';
 
 // 画像最適化ユーティリティをインポート
 import { getProfileImageUrl, getThumbnailUrl, getGalleryImageUrl, getFullsizeImageUrl } from '@/app/utils/imageUtils';
+import { PhotosGrid } from './components/PhotosGrid';
+import { VideoThumbnail } from './components/VideoThumbnail';
 
 interface Photo {
   id: string;
@@ -26,6 +29,7 @@ interface Photo {
   isMain: boolean;
   type?: 'image' | 'video';
   thumbnailUrl?: string;
+  displayOrder?: number;
   deleting?: boolean;
   updating?: boolean;
 }
@@ -39,8 +43,10 @@ export default function PhotosPage() {
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingSub, setUploadingSub] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<{id: string, isMain: boolean} | null>(null);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
+
+  // 並べ替えモード
+  const [isSortMode, setIsSortMode] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -113,6 +119,9 @@ export default function PhotosPage() {
         };
       });
       
+      // 表示順でソート
+      subs.sort((a: Photo, b: Photo) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      
       console.log('写真データ処理完了:', {
         main: main ? { type: main.type, hasThumb: !!main.thumbnailUrl } : null,
         subs: subs.map(s => ({ id: s.id, type: s.type, hasThumb: !!s.thumbnailUrl }))
@@ -151,77 +160,13 @@ export default function PhotosPage() {
     }
   };
 
-  // 写真削除の確認モーダル
-  const DeleteConfirmModal = ({ photoId, isMain, onCancel, onConfirm }) => {
-    const [deleting, setDeleting] = useState(false);
-    
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-      >
-        <motion.div 
-          initial={{ y: 20 }}
-          animate={{ y: 0 }}
-          className="bg-white rounded-xl p-5 max-w-sm w-full shadow-xl"
-        >
-          <h3 className="text-lg font-bold mb-3 text-gray-800">写真を削除しますか？</h3>
-          <p className="text-gray-600 mb-4">
-            {isMain 
-              ? 'メイン写真を削除すると、プロフィールに表示される写真がなくなります。'
-              : 'この写真を削除すると、復元することはできません。'
-            }
-          </p>
-          
-          <div className="flex justify-end space-x-3 mt-6">
-            <button
-              onClick={onCancel}
-              disabled={deleting}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors rounded-md text-gray-800"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={() => {
-                setDeleting(true);
-                onConfirm();
-                onCancel();
-              }}
-              disabled={deleting}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 transition-colors rounded-md text-white flex items-center"
-            >
-              {deleting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  削除中...
-                </>
-              ) : '削除する'}
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    );
-  };
-
-  // 写真の削除
+  // 写真削除処理のエラーハンドリングを強化し、タイムアウト処理を追加します。
   const handleDeletePhoto = async (photoId: string, isMain: boolean) => {
-    // 削除確認のモーダルを表示
-    setConfirmDelete({ id: photoId, isMain });
-  };
-
-  // 写真削除の実行
-  const confirmDeletePhoto = async (photoId: string, isMain: boolean) => {
+    const toastId = toast.loading(isMain ? 'メイン写真を削除中...' : '写真を削除中...');
+    
     try {
-      // ローディング通知
-      const toastId = toast.loading('写真を削除中...');
-      
-      // アニメーション用に削除対象のステートを更新（視覚的フィードバック）
+      // UI側の表示状態をまず更新
       if (isMain) {
-        // メイン写真の場合はフェード処理
         setMainPhoto(prev => prev ? { ...prev, deleting: true } : null);
       } else {
         // サブ写真の場合は対象の写真だけフェード処理
@@ -235,9 +180,24 @@ export default function PhotosPage() {
       // API呼び出しの前にデバッグログ
       console.log(`写真削除リクエスト開始: ID=${photoId}, isMain=${isMain}`);
       
-      // APIを呼び出し
-      const response = await axios.delete(`/api/users/photos/${photoId}`);
-      console.log('削除API応答:', response.data);
+      // タイムアウト付きのAPIコール
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒タイムアウト
+      
+      // APIを呼び出し（axiosからfetchに変更）
+      const response = await fetch(`/api/users/photos/${photoId}`, {
+        method: 'DELETE',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`削除に失敗しました: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('削除API応答:', data);
       
       // 削除成功後の状態更新
       if (isMain) {
@@ -271,8 +231,26 @@ export default function PhotosPage() {
         errorMessage += `: ${error.message}`;
       }
       
-      toast.error(errorMessage);
+      toast.error(errorMessage, { id: toastId });
+      
+      // エラー後に写真を再取得してUIを最新状態に更新
+      await fetchPhotos();
     }
+  };
+
+  // 写真の並べ替え
+  const handlePhotosReordered = (newOrder: Photo[]) => {
+    // 新しいメイン写真と並べ替えられたサブ写真に分ける
+    const newMain = newOrder.find(p => p.isMain) || null;
+    const newSubs = newOrder.filter(p => !p.isMain);
+    
+    setMainPhoto(newMain);
+    setSubPhotos(newSubs);
+  };
+  
+  // 並べ替えモードの切り替え
+  const toggleSortMode = () => {
+    setIsSortMode(!isSortMode);
   };
 
   // メイン写真のアップロード処理
@@ -869,7 +847,7 @@ export default function PhotosPage() {
                       <img
                         src={mainPhoto.url}
                         alt="メイン写真"
-                        className={`w-full h-full object-cover ${mainPhoto.deleting ? 'opacity-30' : ''}`}
+                        className={`w-full h-full object-cover`}
                       />
                     ) : (
                       // 通常の画像URL
@@ -878,14 +856,8 @@ export default function PhotosPage() {
                         alt="メイン写真"
                         layout="fill"
                         objectFit="cover"
-                        className={mainPhoto.deleting ? 'opacity-30' : ''}
                         priority
                       />
-                    )}
-                    {mainPhoto.deleting && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <FaSpinner className="animate-spin text-red-500 text-4xl" />
-                      </div>
                     )}
                     <div className="absolute bottom-2 right-2 flex space-x-2">
                       <button
@@ -924,157 +896,117 @@ export default function PhotosPage() {
               </div>
             </motion.div>
             
-            {/* サブ写真 */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-            >
-              <h3 className="text-md font-medium mb-2">サブ写真</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {/* スケルトンローディング */}
-                {loadingPhotos && subPhotos.length === 0 && (
-                  <>
-                    <div className="animate-pulse">
-                      <div className="bg-gray-200 rounded-lg aspect-square w-full h-32"></div>
-                    </div>
-                    <div className="animate-pulse">
-                      <div className="bg-gray-200 rounded-lg aspect-square w-full h-32"></div>
-                    </div>
-                  </>
-                )}
-                
-                {subPhotos.map((photo, index) => (
-                  <motion.div
-                    key={photo.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: photo.deleting ? 0.5 : 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 * index }}
-                    className="relative aspect-square rounded-lg overflow-hidden bg-gray-100"
-                  >
-                    {photo.type === 'video' ? (
-                      // 動画サムネイルの表示
-                      <VideoThumbnail 
-                        url={photo.url} 
-                        thumbnailUrl={photo.thumbnailUrl}
-                        className={photo.deleting ? 'opacity-30' : ''}
-                      />
-                    ) : photo.url.startsWith('data:') ? (
-                      // Base64の場合
-                      <img
-                        src={photo.url}
-                        alt={`サブ写真 ${index + 1}`}
-                        className={`w-full h-full object-cover ${photo.deleting ? 'opacity-30' : ''}`}
-                      />
-                    ) : (
-                      // 通常の画像URL
-                      <Image
-                        src={getThumbnailUrl(photo.url)}
-                        alt={`サブ写真 ${index + 1}`}
-                        layout="fill"
-                        objectFit="cover"
-                        className={photo.deleting ? 'opacity-30' : ''}
-                      />
-                    )}
-                    {photo.deleting && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <FaSpinner className="animate-spin text-red-500 text-3xl" />
-                      </div>
-                    )}
-                    <div className="absolute bottom-2 right-2 flex space-x-2">
-                      <button
-                        onClick={() => setAsMainPhoto(photo.id)}
-                        className="bg-teal-500 text-white p-2 rounded-full shadow hover:bg-teal-600 transition"
-                        title="メイン写真に設定"
-                      >
-                        <FaStar />
-                      </button>
-                      <button
-                        onClick={() => handleDeletePhoto(photo.id, false)}
-                        className="bg-red-500 text-white p-2 rounded-full shadow hover:bg-red-600 transition"
-                        title="削除"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                    {photo.updating && (
-                      <div className="absolute top-0 left-0 w-full h-full bg-gray-100 opacity-50 flex justify-center items-center">
-                        <FaSpinner className="animate-spin text-teal-600 text-3xl" />
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-                
+            {/* 写真・動画追加ボタンエリア */}
+            {remainingUploads > 0 && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 {/* 写真追加ボタン */}
-                {remainingUploads > 0 && (
+                <motion.div
+                  key="add-sub-photo"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 }}
+                  className="relative group"
+                >
                   <motion.div
-                    key="add-sub-photo"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.2 }}
-                    className="relative group"
+                    onClick={() => document.getElementById('sub-photo-upload-box')?.click()}
+                    className="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer bg-white"
                   >
-                    <motion.div
-                      onClick={() => document.getElementById('sub-photo-upload-box')?.click()}
-                      className="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer bg-white"
-                    >
-                      {uploadingSub ? (
-                        <FaSpinner className="animate-spin text-teal-600 text-3xl" />
-                      ) : (
-                        <>
-                          <FaCamera className="text-gray-400 text-3xl mb-1" />
-                          <p className="text-gray-600 text-sm font-medium">写真を追加（複数可）</p>
-                          <p className="text-gray-500 text-xs mt-1">ここをクリック</p>
-                        </>
-                      )}
-                    </motion.div>
-                    <input
-                      id="sub-photo-upload-box"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleSubPhotoChange}
-                      className="hidden"
-                      disabled={uploadingSub || remainingUploads <= 0}
-                      multiple
-                    />
+                    {uploadingSub ? (
+                      <FaSpinner className="animate-spin text-teal-600 text-3xl" />
+                    ) : (
+                      <>
+                        <FaCamera className="text-gray-400 text-3xl mb-1" />
+                        <p className="text-gray-600 text-sm font-medium">写真を追加（複数可）</p>
+                        <p className="text-gray-500 text-xs mt-1">ここをクリック</p>
+                      </>
+                    )}
                   </motion.div>
-                )}
+                  <input
+                    id="sub-photo-upload-box"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSubPhotoChange}
+                    className="hidden"
+                    disabled={uploadingSub || remainingUploads <= 0}
+                    multiple
+                  />
+                </motion.div>
                 
                 {/* 動画追加ボタン */}
-                {remainingUploads > 0 && (
+                <motion.div
+                  key="add-video"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 }}
+                  className="relative group"
+                >
                   <motion.div
-                    key="add-video"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.2 }}
-                    className="relative group"
+                    onClick={() => document.getElementById('video-upload-box')?.click()}
+                    className="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer bg-white bg-opacity-80"
                   >
-                    <motion.div
-                      onClick={() => document.getElementById('video-upload-box')?.click()}
-                      className="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer bg-white bg-opacity-80"
-                    >
-                      {uploadingVideo ? (
-                        <FaSpinner className="animate-spin text-teal-600 text-3xl" />
-                      ) : (
-                        <>
-                          <FaVideo className="text-gray-400 text-3xl mb-1" />
-                          <p className="text-gray-600 text-sm font-medium">動画を追加</p>
-                          <p className="text-gray-500 text-xs mt-1">ここをクリック</p>
-                        </>
-                      )}
-                    </motion.div>
-                    <input
-                      id="video-upload-box"
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                      disabled={uploadingVideo || remainingUploads <= 0}
-                    />
+                    {uploadingVideo ? (
+                      <FaSpinner className="animate-spin text-teal-600 text-3xl" />
+                    ) : (
+                      <>
+                        <FaVideo className="text-gray-400 text-3xl mb-1" />
+                        <p className="text-gray-600 text-sm font-medium">動画を追加</p>
+                        <p className="text-gray-500 text-xs mt-1">ここをクリック</p>
+                      </>
+                    )}
                   </motion.div>
+                  <input
+                    id="video-upload-box"
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoUpload}
+                    className="hidden"
+                    disabled={uploadingVideo || remainingUploads <= 0}
+                  />
+                </motion.div>
+              </div>
+            )}
+            
+            {/* 写真一覧 */}
+            <div className="mt-8 w-full">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">写真・動画ギャラリー</h2>
+                
+                {/* 並べ替えモード切り替えボタン */}
+                {(mainPhoto || subPhotos.length > 0) && (
+                  <button
+                    onClick={toggleSortMode}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
+                      isSortMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    <MdSort />
+                    {isSortMode ? '並べ替え完了' : '並べ替え'}
+                  </button>
                 )}
               </div>
-            </motion.div>
+              
+              {loading ? (
+                <div className="flex justify-center items-center h-64">
+                  <FaSpinner className="animate-spin text-3xl text-gray-500" />
+                </div>
+              ) : (
+                <>
+                  {mainPhoto || subPhotos.length > 0 ? (
+                    <PhotosGrid 
+                      photos={subPhotos} 
+                      isSortMode={isSortMode}
+                      onPhotosReordered={handlePhotosReordered}
+                      onDelete={(photo) => handleDeletePhoto(photo.id, photo.isMain)}
+                      onSetMain={photo => setAsMainPhoto(photo.id)}
+                    />
+                  ) : (
+                    <div className="text-center p-8 bg-gray-100 rounded-lg">
+                      <p>まだ写真がありません。写真を追加してください。</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             
             {/* 写真のガイドライン */}
             <motion.div
@@ -1095,16 +1027,6 @@ export default function PhotosPage() {
           </>
         )}
       </div>
-      
-      {/* 削除確認モーダル */}
-      {confirmDelete && (
-        <DeleteConfirmModal
-          photoId={confirmDelete.id}
-          isMain={confirmDelete.isMain}
-          onCancel={() => setConfirmDelete(null)}
-          onConfirm={() => confirmDeletePhoto(confirmDelete.id, confirmDelete.isMain)}
-        />
-      )}
     </div>
   );
 }
