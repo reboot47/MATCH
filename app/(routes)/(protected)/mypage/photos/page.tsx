@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
@@ -11,7 +11,8 @@ import {
   FaSpinner, 
   FaStar, 
   FaTrash,
-  FaImage
+  FaImage,
+  FaVideo
 } from 'react-icons/fa';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
 import Image from 'next/image';
@@ -23,6 +24,8 @@ interface Photo {
   id: string;
   url: string;
   isMain: boolean;
+  type?: 'image' | 'video';
+  thumbnailUrl?: string;
   deleting?: boolean;
   updating?: boolean;
 }
@@ -35,6 +38,7 @@ export default function PhotosPage() {
   const [loading, setLoading] = useState(true);
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingSub, setUploadingSub] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, isMain: boolean} | null>(null);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
 
@@ -93,11 +97,29 @@ export default function PhotosPage() {
       
       // メイン写真とサブ写真に分類
       const main = photos.find((photo: any) => photo.isMain);
-      const subs = photos.filter((photo: any) => !photo.isMain);
+      const subs = photos.filter((photo: any) => !photo.isMain).map((photo: any) => {
+        // サーバーから返されたデータを優先的に使用
+        const type = photo.type || 
+          (photo.url && (photo.url.includes('.mp4') || photo.url.includes('.mov')) ? 'video' : 'image');
+        
+        // 動画の場合はサムネイルを確保
+        const thumbnailUrl = photo.thumbnailUrl || 
+          (type === 'video' ? 'https://placehold.co/400x300?text=Video' : null);
+          
+        return {
+          ...photo,
+          type,
+          thumbnailUrl
+        };
+      });
+      
+      console.log('写真データ処理完了:', {
+        main: main ? { type: main.type, hasThumb: !!main.thumbnailUrl } : null,
+        subs: subs.map(s => ({ id: s.id, type: s.type, hasThumb: !!s.thumbnailUrl }))
+      });
       
       setMainPhoto(main || null);
       setSubPhotos(subs || []);
-      console.log(`写真データを取得しました: メイン写真=${!!main}, サブ写真=${subs.length}枚`);
     } catch (error: any) {
       console.error('写真取得エラー:', error);
       fetchError = error; // エラーを保存
@@ -311,6 +333,91 @@ export default function PhotosPage() {
     }
   };
 
+  // 動画のアップロード処理
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    
+    // ファイルサイズと形式をチェック
+    if (file.size > 50 * 1024 * 1024) { // 50MB制限
+      toast.error('ファイルサイズは50MB以下にしてください');
+      return;
+    }
+    
+    if (!file.type.startsWith('video/')) {
+      toast.error('動画ファイルのみアップロードできます');
+      return;
+    }
+    
+    try {
+      setUploadingVideo(true);
+      const toastId = toast.loading('動画をアップロード中...');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('isMain', 'false');
+      formData.append('fileType', 'video');
+      
+      console.log('動画アップロード開始:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      });
+      
+      const response = await axios.post('/api/users/photos', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          toast.loading(`動画をアップロード中... ${percentCompleted}%`, { id: toastId });
+        }
+      });
+      
+      console.log('動画アップロード応答:', response.data);
+      
+      if (response.data?.url) {
+        // サムネイルURLの確認と生成（バックアップ戦略）
+        let thumbnailUrl = response.data.thumbnailUrl;
+        
+        // サムネイルURLが存在しない場合は生成を試みる
+        if (!thumbnailUrl) {
+          console.log('サムネイルURLがレスポンスにありません - バックアップを生成します');
+          
+          // 拡張子を.jpgに置き換えたURLを作成
+          thumbnailUrl = response.data.url.replace(/\.[^/.]+$/, ".jpg");
+          console.log('生成したサムネイルURL:', thumbnailUrl);
+        }
+        
+        // 動画をサブフォトリストに追加
+        const newVideo = { 
+          id: response.data.id, 
+          url: response.data.url,
+          isMain: false,
+          type: 'video',
+          thumbnailUrl: thumbnailUrl
+        };
+        
+        console.log('追加する動画データ:', newVideo);
+        
+        setSubPhotos(prev => [...prev, newVideo]);
+        toast.success('動画をアップロードしました', { id: toastId });
+      } else {
+        console.error('動画アップロードレスポンスにURLがありません');
+        toast.error('動画のアップロードに失敗しました', { id: toastId });
+      }
+    } catch (error: any) {
+      console.error('動画アップロードエラー:', error);
+      
+      if (error.response?.data?.error) {
+        toast.error(`エラー: ${error.response.data.error}`, { id: 'upload-video' });
+      } else {
+        toast.error('動画のアップロードに失敗しました', { id: 'upload-video' });
+      }
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
   // サブ写真のアップロード処理
   const handleSubPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -459,6 +566,232 @@ export default function PhotosPage() {
       
       toast.error('写真の設定に失敗しました', { id: toastId });
     }
+  };
+
+  // VideoThumbnail コンポーネント
+  const VideoThumbnail = ({ url, thumbnailUrl, className = '' }: { url: string, thumbnailUrl?: string, className?: string }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [error, setError] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [localThumbnail, setLocalThumbnail] = useState<string | null>(null);
+    // 実際に再生しているかどうかのフラグ
+    const [effectivelyPlaying, setEffectivelyPlaying] = useState(false);
+    
+    useEffect(() => {
+      // コンポーネントのマウント時にサムネイル生成を試みる
+      console.log('動画情報:', { url, thumbnailUrl });
+
+      const generateThumbnail = async () => {
+        if (!videoRef.current) return;
+        
+        try {
+          // MOVファイルがMP4に変換されている可能性があるので、URLを確認して対応
+          let videoSrc = url;
+          if (url.toLowerCase().endsWith('.mov')) {
+            // MOVをMP4に置き換え
+            videoSrc = url.replace(/\.mov$/i, '.mp4');
+            console.log('URL変換: MOV → MP4', videoSrc);
+          }
+          
+          // 動画のメタデータをロード
+          await new Promise<void>((resolve, reject) => {
+            const handleLoad = () => {
+              console.log('動画メタデータロード成功');
+              resolve();
+            };
+            
+            const handleError = (e: any) => {
+              console.error('動画メタデータロードエラー:', e);
+              reject(e);
+            };
+            
+            videoRef.current!.onloadedmetadata = handleLoad;
+            videoRef.current!.onerror = handleError;
+            // リロードを強制
+            videoRef.current!.load();
+            
+            // タイムアウト - 正常に続行できるようrejectではなくresolveを使用
+            let timeoutId = setTimeout(() => {
+              console.warn('動画メタデータロードタイムアウト - サムネイル生成を続行');
+              resolve(); // エラーにせず続行
+            }, 15000); // 15秒に延長
+            
+            // クリーンアップ関数
+            return () => clearTimeout(timeoutId);
+          });
+          
+          // メタデータ読み込み後、1秒付近のフレームを取得
+          videoRef.current.currentTime = 1.0;
+          
+          // フレームロード完了を待つ
+          await new Promise<void>((resolve) => {
+            videoRef.current!.onseeked = () => resolve();
+          });
+          
+          // キャンバスにフレームを描画
+          const canvas = document.createElement('canvas');
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            const thumbnail = canvas.toDataURL('image/jpeg');
+            setLocalThumbnail(thumbnail);
+            console.log('サムネイル生成成功');
+          }
+          
+          // 動画時間を0に戻す
+          videoRef.current.currentTime = 0;
+        } catch (e) {
+          console.error('サムネイル生成エラー:', e);
+          setError(true);
+        }
+      };
+      
+      // フレーム取得を試みる
+      generateThumbnail();
+    }, [url]);
+    
+    const handleMouseEnter = () => {
+      if (videoRef.current) {
+        console.log('動画再生開始:', url);
+        
+        try {
+          // 複数のソース要素があるか確認
+          if (videoRef.current.childElementCount === 0) {
+            // ソース要素が存在しない場合は再構築
+            const mp4Source = document.createElement('source');
+            mp4Source.src = url.replace(/\.[^/.]+$/, '.mp4');
+            mp4Source.type = 'video/mp4';
+            
+            const originalSource = document.createElement('source');
+            originalSource.src = url;
+            originalSource.type = url.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4';
+            
+            // 一度クリア
+            videoRef.current.innerHTML = '';
+            videoRef.current.appendChild(mp4Source);
+            videoRef.current.appendChild(originalSource);
+          }
+          
+          // 再生前にロードを強制
+          videoRef.current.load();
+          
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                console.log('動画再生成功');
+                setIsPlaying(true);
+                setEffectivelyPlaying(true);
+                setError(false); // エラー状態をリセット
+              })
+              .catch(e => {
+                console.error('動画再生エラー:', e);
+                setError(true);
+                setEffectivelyPlaying(false);
+                // 再生に失敗しても、サムネイルがある場合は処理を続行
+                if (localThumbnail || thumbnailUrl) {
+                  console.log('サムネイルで代替表示');
+                }
+              });
+          }
+        } catch (e) {
+          console.error('動画再生例外:', e);
+          setError(true);
+        }
+      }
+    };
+    
+    const handleMouseLeave = () => {
+      if (videoRef.current && isPlaying) {
+        try {
+          // 再生状態の時のみ停止を試みる
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+          setIsPlaying(false);
+        } catch (e) {
+          console.error('動画停止エラー:', e);
+        }
+      }
+    };
+    
+    // サムネイルの優先順位: ローカル生成 > サーバー > SVGプレースホルダー
+    const effectiveThumbnail = localThumbnail || 
+                               (!imageError && thumbnailUrl) || 
+                               'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTBlMGUwIi8+PHBhdGggZD0iTTE2MCwxMzAgbDgwLDUwIC04MCw1MCB6IiBmaWxsPSIjYjBiMGIwIi8+PC9zdmc+';
+    
+    // サムネイルURLの管理
+    const handleImageError = () => {
+      console.log('サムネイル画像読み込みエラー:', thumbnailUrl);
+      setImageError(true);
+    };
+    
+    return (
+      <div 
+        className={`relative w-full h-full ${className}`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {/* ビデオ要素（常に存在、表示/非表示を切り替え） */}
+        <video 
+          ref={videoRef}
+          className={`absolute inset-0 w-full h-full object-cover ${isPlaying ? 'block' : 'hidden'}`}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onError={(e) => {
+            console.error('動画読み込みエラー:', e);
+            setError(true);
+            setEffectivelyPlaying(false);
+          }}
+          onPlaying={() => {
+            // 実際に再生中であればエラー状態を解除
+            setEffectivelyPlaying(true);
+            setError(false);
+          }}
+          onEnded={() => {
+            // ループが正しく動作しなかった場合のフォールバック
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0;
+              videoRef.current.play().catch(e => {
+                console.error('ループ再生エラー:', e);
+              });
+            }
+          }}
+        >
+          {/* 複数の形式をサポート */}
+          <source src={url.replace(/\.mov$/i, '.mp4')} type="video/mp4" />
+          <source src={url} type={url.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4'} />
+          動画の再生に対応したブラウザが必要です
+        </video>
+        
+        {/* サムネイル（動画非再生時） */}
+        {!isPlaying && (
+          <div className="absolute inset-0 w-full h-full">
+            <div className="absolute inset-0 bg-gray-200"></div>
+            <img 
+              src={effectiveThumbnail}
+              alt="Video thumbnail"
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={handleImageError}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
+              <FaVideo className="text-white text-2xl" />
+            </div>
+          </div>
+        )}
+        
+        {error && !effectivelyPlaying && (
+          <div className="absolute bottom-0 left-0 right-0 bg-red-500 text-white p-1 text-xs">
+            再生エラー
+          </div>
+        )}
+      </div>
+    );
   };
 
   // 残りのアップロード可能枚数
@@ -619,7 +952,14 @@ export default function PhotosPage() {
                     transition={{ duration: 0.3, delay: 0.1 * index }}
                     className="relative aspect-square rounded-lg overflow-hidden bg-gray-100"
                   >
-                    {photo.url.startsWith('data:') ? (
+                    {photo.type === 'video' ? (
+                      // 動画サムネイルの表示
+                      <VideoThumbnail 
+                        url={photo.url} 
+                        thumbnailUrl={photo.thumbnailUrl}
+                        className={photo.deleting ? 'opacity-30' : ''}
+                      />
+                    ) : photo.url.startsWith('data:') ? (
                       // Base64の場合
                       <img
                         src={photo.url}
@@ -699,6 +1039,40 @@ export default function PhotosPage() {
                     />
                   </motion.div>
                 )}
+                
+                {/* 動画追加ボタン */}
+                {remainingUploads > 0 && (
+                  <motion.div
+                    key="add-video"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.2 }}
+                    className="relative group"
+                  >
+                    <motion.div
+                      onClick={() => document.getElementById('video-upload-box')?.click()}
+                      className="flex flex-col items-center justify-center w-full h-full min-h-[140px] border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer bg-white bg-opacity-80"
+                    >
+                      {uploadingVideo ? (
+                        <FaSpinner className="animate-spin text-teal-600 text-3xl" />
+                      ) : (
+                        <>
+                          <FaVideo className="text-gray-400 text-3xl mb-1" />
+                          <p className="text-gray-600 text-sm font-medium">動画を追加</p>
+                          <p className="text-gray-500 text-xs mt-1">ここをクリック</p>
+                        </>
+                      )}
+                    </motion.div>
+                    <input
+                      id="video-upload-box"
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoUpload}
+                      className="hidden"
+                      disabled={uploadingVideo || remainingUploads <= 0}
+                    />
+                  </motion.div>
+                )}
               </div>
             </motion.div>
             
@@ -709,12 +1083,13 @@ export default function PhotosPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.4 }}
             >
-              <h3 className="text-sm font-bold text-teal-800 mb-2">写真アップロードのガイドライン</h3>
+              <h3 className="text-sm font-bold text-teal-800 mb-2">写真・動画アップロードのガイドライン</h3>
               <ul className="text-xs text-teal-700 list-disc pl-4 space-y-1">
                 <li>メイン写真はあなたの顔が明確に写っている写真を選びましょう</li>
-                <li>不適切な写真やプライバシーを侵害する写真は避けてください</li>
-                <li>高解像度の写真がより良いプロフィール印象につながります</li>
-                <li>最大20枚まで写真をアップロードできます</li>
+                <li>動画は50MB以下、30秒程度の長さが推奨です</li>
+                <li>不適切な写真や動画、プライバシーを侵害するコンテンツは避けてください</li>
+                <li>高解像度の写真・動画がより良いプロフィール印象につながります</li>
+                <li>最大20枚まで写真または動画をアップロードできます</li>
               </ul>
             </motion.div>
           </>
