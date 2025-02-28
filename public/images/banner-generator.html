@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINEBUZZ広告バナー生成</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+      background-color: #f5f5f5;
+    }
+    
+    .banner-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .banner {
+      width: 800px;
+      height: 240px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .banner-1 {
+      background: linear-gradient(135deg, #3494E6, #EC6EAD);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+    }
+    
+    .banner-2 {
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+    }
+    
+    .banner-3 {
+      background: linear-gradient(135deg, #ffb347, #ffcc33);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+    }
+    
+    .banner-content {
+      z-index: 2;
+    }
+    
+    .banner-title {
+      font-size: 32px;
+      font-weight: bold;
+      margin: 0 0 8px 0;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    }
+    
+    .banner-subtitle {
+      font-size: 18px;
+      margin: 0;
+      opacity: 0.9;
+    }
+    
+    .banner-cta {
+      background-color: white;
+      color: #333;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 16px;
+      transition: transform 0.2s ease;
+      display: inline-block;
+      margin-top: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .banner-cta:hover {
+      transform: translateY(-2px);
+    }
+    
+    .banner-decoration {
+      position: absolute;
+      right: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .banner-decoration .circle {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    
+    .pattern {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.1) 5%, transparent 5%),
+                         radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.1) 5%, transparent 5%),
+                         radial-gradient(circle at 40% 30%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.1) 8%, transparent 8%);
+      background-size: 120px 120px;
+      opacity: 0.6;
+    }
+    
+    .instructions {
+      margin-top: 40px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .instructions h2 {
+      margin-top: 0;
+    }
+    
+    .instructions code {
+      background-color: #f0f0f0;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="banner-container">
+    <!-- バナー1 -->
+    <div class="banner banner-1" id="banner1">
+      <div class="banner-content">
+        <h2 class="banner-title">特別割引キャンペーン</h2>
+        <p class="banner-subtitle">今だけ3ヶ月プランが30%OFF</p>
+        <a href="#" class="banner-cta">詳しく見る</a>
+      </div>
+      <div class="banner-decoration">
+        <div class="circle">30%<br>OFF</div>
+      </div>
+      <div class="pattern"></div>
+    </div>
+    
+    <!-- バナー2 -->
+    <div class="banner banner-2" id="banner2">
+      <div class="banner-content">
+        <h2 class="banner-title">マッチング率UP</h2>
+        <p class="banner-subtitle">プレミアム機能で出会いの可能性が3倍に</p>
+        <a href="#" class="banner-cta">機能を確認する</a>
+      </div>
+      <div class="banner-decoration">
+        <div class="circle">3倍</div>
+      </div>
+      <div class="pattern"></div>
+    </div>
+    
+    <!-- バナー3 -->
+    <div class="banner banner-3" id="banner3">
+      <div class="banner-content">
+        <h2 class="banner-title">プレミアムプラン</h2>
+        <p class="banner-subtitle">制限なしのメッセージ機能を今すぐ体験</p>
+        <a href="#" class="banner-cta">アップグレード</a>
+      </div>
+      <div class="banner-decoration">
+        <div class="circle">Premium</div>
+      </div>
+      <div class="pattern"></div>
+    </div>
+  </div>
+  
+  <div class="instructions">
+    <h2>バナー画像の作成方法</h2>
+    <ol>
+      <li>各バナーをスクリーンショットで撮影します（幅800px x 高さ240px）</li>
+      <li>画像編集ソフトで必要に応じてサイズを調整します</li>
+      <li>banner1.jpg、banner2.jpg、banner3.jpgとして保存します</li>
+      <li>保存した画像を<code>/public/images/</code>ディレクトリに配置します</li>
+    </ol>
+  </div>
+
+  <script>
+    // このスクリプトはブラウザでページを開いた時に実行されます
+    console.log('バナー生成ページが読み込まれました');
+  </script>
+</body>
+</html>

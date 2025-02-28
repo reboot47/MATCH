@@ -63,17 +63,37 @@ export async function POST(request: Request) {
           {
             folder: 'linebuzz',
             public_id: `${session.user.phoneNumber}-${Date.now()}`,
+            // 画像最適化オプションを追加
+            quality: 'auto',
+            fetch_format: 'auto',
+            responsive: true,
+            transformation: [
+              { width: 'auto', dpr: 'auto', crop: 'scale', quality: 'auto' }
+            ],
+            // キャッシュ最適化
+            resource_type: 'image',
+            type: 'upload',
+            // パフォーマンス向上のための設定
+            use_filename: false,
+            unique_filename: true,
+            overwrite: false,
+            invalidate: false
           },
           (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+              console.error('Cloudinaryアップロードエラー:', error);
+              reject(error);
+            } else {
+              console.log('Cloudinaryアップロード成功:', result);
+              resolve(result);
+            }
           }
         );
       });
 
       // 画像のURLを返す
       const imageUrl = (result as any).secure_url;
-      console.log('Cloudinaryアップロード成功:', imageUrl);
+      console.log('画像のURL:', imageUrl);
 
       return NextResponse.json({ url: imageUrl });
     } catch (cloudinaryError) {

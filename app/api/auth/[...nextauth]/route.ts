@@ -59,6 +59,7 @@ export const authOptions: AuthOptions = {
         return {
           id: user.id,
           phoneNumber: user.phoneNumber,
+          email: user.email,
           name: user.name,
           image: user.image,
         };
@@ -75,30 +76,55 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, trigger, session }) {
+      // ユーザーが初めてログインした時
       if (user) {
         token.id = user.id;
         token.phoneNumber = user.phoneNumber;
+        token.email = user.email;
         token.image = user.image;
+        token.name = user.name;
       }
 
       // セッション更新ハンドリング
       if (trigger === "update" && session) {
-        // user情報を取得
-        if (token.id) {
+        console.log("JWT更新トリガー:", { session });
+        
+        // sessionからの更新があればそれを適用
+        if (session.user) {
+          if (session.user.email) token.email = session.user.email;
+          if (session.user.name) token.name = session.user.name;
+          if (session.user.image) token.image = session.user.image;
+        }
+      }
+
+      // 毎回のJWT生成時に最新のユーザー情報を取得
+      if (token.id) {
+        try {
           const updatedUser = await prisma.user.findUnique({
             where: { id: token.id as string },
             select: {
               phoneNumber: true,
+              email: true,
               name: true,
               image: true,
             },
           });
 
           if (updatedUser) {
+            // 常に最新のデータで更新
             token.phoneNumber = updatedUser.phoneNumber;
+            token.email = updatedUser.email;
             token.name = updatedUser.name;
             token.image = updatedUser.image;
+            
+            console.log("JWT更新完了:", { 
+              email: token.email,
+              name: token.name,
+              phoneNumber: token.phoneNumber
+            });
           }
+        } catch (error) {
+          console.error("JWT更新エラー:", error);
         }
       }
 
@@ -108,6 +134,7 @@ export const authOptions: AuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.phoneNumber = token.phoneNumber as string;
+        session.user.email = token.email as string || null;
         session.user.image = token.image as string || null;
       }
       return session;

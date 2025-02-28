@@ -46,8 +46,156 @@ model User {
   image         String?
   location      String?
   website       String?
+  planType      String    @default("standard") // standard or gold
+  gender        String?
+  birthdate     DateTime?
+  height        Int?
+  job           String?
+  education     String?
+  income        String?
+  purpose       String?
+  tweet         String?
+  selfIntroduction String?
+  // 詳細プロフィール情報
+  drinking      String?
+  smoking       String?
+  childrenPlan  String?
+  marriageIntention String?
+  languages     String[]  @default([])
+  interests     String[]  @default([])
+  notificationSettings Json?
   accounts      Account[]
   sessions      Session[]
+  receivedLikes Like[]    @relation("LikeReceiver")
+  sentLikes     Like[]    @relation("LikeSender")
+  points        Point[]
+  coins         Coin[]
+  notifications Notification[]
+  favorites     Favorite[] @relation("FavoriteOwner")
+  favoritedBy   Favorite[] @relation("FavoritedUser")
+  memos         Memo[]
+  footprintsLeft Footprint[] @relation("FootprintLeaver")
+  footprintsReceived Footprint[] @relation("FootprintReceiver")
+  sentMessages  Message[]  @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  photos        Photo[]
+  appealTags    UserAppealTag[]
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  price       Float
+  features    String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Like {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  createdAt   DateTime @default(now())
+  sender      User     @relation("LikeSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User     @relation("LikeReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Point {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Coin {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  isRead    Boolean  @default(false)
+  type      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  ownerId    String
+  favoriteId String
+  createdAt  DateTime @default(now())
+  owner      User     @relation("FavoriteOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  favorited  User     @relation("FavoritedUser", fields: [favoriteId], references: [id], onDelete: Cascade)
+}
+
+model Memo {
+  id        String   @id @default(cuid())
+  userId    String
+  aboutUserId String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Footprint {
+  id         String   @id @default(cuid())
+  leaverId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+  leaver     User     @relation("FootprintLeaver", fields: [leaverId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("FootprintReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  isMain    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AppealTag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       UserAppealTag[]
+}
+
+model UserAppealTag {
+  id         String    @id @default(cuid())
+  userId     String
+  tagId      String
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appealTag  AppealTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tagId])
 }
 
 model VerificationToken {

@@ -54,6 +54,12 @@ export default function PhoneVerification({ onVerificationComplete }: PhoneVerif
       if (process.env.NODE_ENV !== 'production') {
         // サーバーからのレスポンスからコードを取得（あれば）
         const responseCode = data.debugCode || '';
+        console.log('\n==================================');
+        console.log('【フロントエンド - 認証コード受信】');
+        console.log('レスポンスデータ:', data);
+        console.log(`認証コード: ${responseCode}`);
+        console.log('==================================\n');
+        
         setDevMessage(`認証コードはサーバーコンソールに表示されています。\n開発環境ではSMSは送信されません。${responseCode ? `\n認証コード: ${responseCode}` : ''}`);
       }
       

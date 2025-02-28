@@ -15,17 +15,19 @@ cloudinary.config({
 
 // 一時的なバッファをCloudinaryにアップロードする関数
 async function uploadToCloudinary(buffer: Buffer): Promise<string> {
-  console.log('Cloudinaryアップロード開始', {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    hasApiKey: !!process.env.CLOUDINARY_API_KEY,
-    hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
-  });
+  console.log('Cloudinaryアップロード開始');
 
   return new Promise((resolve, reject) => {
     const uploadOptions = {
       resource_type: 'image',
-      folder: 'paters',
+      folder: 'linebuzz',
+      transformation: [
+        { width: 800, crop: "limit" },
+        { quality: "auto:good" }
+      ]
     };
+
+    console.log('Cloudinaryアップロードオプション:', uploadOptions);
 
     const uploadCallback = (error: any, result: any) => {
       if (error) {
@@ -37,8 +39,22 @@ async function uploadToCloudinary(buffer: Buffer): Promise<string> {
       }
     };
 
-    cloudinary.uploader.upload_stream(uploadOptions, uploadCallback).end(buffer);
+    try {
+      cloudinary.uploader.upload_stream(uploadOptions, uploadCallback).end(buffer);
+    } catch (streamError) {
+      console.error('Cloudinaryストリームエラー:', streamError);
+      reject(streamError);
+    }
   });
+}
+
+// フォールバック：一時的にBase64データURLとして保存する関数
+async function saveAsBase64(buffer: Buffer, mimeType: string): Promise<string> {
+  console.log('Base64保存開始', { mimeType });
+  const base64String = buffer.toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64String}`;
+  console.log('Base64保存完了', { dataUrlLength: dataUrl.length });
+  return dataUrl;
 }
 
 // 写真のアップロード
@@ -61,30 +77,40 @@ export async function POST(request: Request) {
     const isMainStr = formData.get('isMain') as string;
     const isMain = isMainStr === 'true';
     
-    console.log('写真アップロードリクエスト', {
-      userId,
-      isMain,
-      hasFile: !!file,
-      fileType: file?.type,
-      fileSize: file?.size
-    });
-    
     if (!file) {
       return new NextResponse(JSON.stringify({ error: 'ファイルが必要です' }), {
         status: 400,
       });
     }
     
+    console.log('ファイル情報:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+    
+    // ファイルをバッファに変換
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    
+    console.log('バッファ情報:', {
+      length: buffer.length
+    });
+    
+    let imageUrl;
+    
     try {
-      // ファイルをバッファに変換
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      console.log('ファイルをバッファに変換しました', {
-        bufferLength: buffer.length
-      });
-      
-      // Cloudinaryにアップロード
-      const imageUrl = await uploadToCloudinary(buffer);
+      // まずCloudinaryにアップロードを試みる
+      try {
+        imageUrl = await uploadToCloudinary(buffer);
+        console.log('Cloudinaryアップロード成功');
+      } catch (cloudinaryError) {
+        console.error('Cloudinaryアップロード失敗', cloudinaryError);
+        
+        // フォールバックとしてBase64で保存
+        imageUrl = await saveAsBase64(buffer, file.type);
+        console.log('Base64フォールバック保存完了');
+      }
       
       // もしメイン写真なら、他のメイン写真をメインでなくする
       if (isMain) {
@@ -113,21 +139,21 @@ export async function POST(request: Request) {
         url: photo.url,
         isMain: photo.isMain,
       });
-    } catch (innerError) {
-      console.error('ファイル処理エラー:', innerError);
-      throw new Error(`ファイル処理中にエラーが発生しました: ${innerError instanceof Error ? innerError.message : '不明なエラー'}`);
+    } catch (uploadError) {
+      console.error('アップロードプロセスエラー:', uploadError);
+      return new NextResponse(JSON.stringify({ 
+        error: 'アップロードプロセスエラー',
+        details: uploadError instanceof Error ? uploadError.message : 'Unknown error'
+      }), {
+        status: 500,
+      });
     }
   } catch (error) {
     console.error('写真アップロードエラー:', error);
-    
-    // エラーの詳細を含める
-    const errorMessage = error instanceof Error 
-      ? `${error.name}: ${error.message}` 
-      : '不明なエラーが発生しました';
-      
+    console.error('詳細なエラー情報:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return new NextResponse(JSON.stringify({ 
-      error: 'サーバーエラーが発生しました', 
-      details: errorMessage 
+      error: 'サーバーエラーが発生しました',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
     });

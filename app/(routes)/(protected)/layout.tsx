@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import BottomNavigation from '@/app/components/BottomNavigation';
 
 export default function ProtectedLayout({
   children,
@@ -38,5 +39,10 @@ export default function ProtectedLayout({
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="pb-16"> 
+      {children}
+      <BottomNavigation />
+    </div>
+  );
 }

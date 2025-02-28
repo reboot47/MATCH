@@ -48,7 +48,13 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分後
 
     try {
-      console.log('認証コード生成: ', { phoneNumber, codeLength: code?.length });
+      console.log('\n==================================');
+      console.log('認証コード生成 (詳細): ');
+      console.log(`電話番号: ${phoneNumber}`);
+      console.log(`認証コード: ${code}`);
+      console.log('有効期限: ' + expiresAt.toLocaleString());
+      console.log('NODE_ENV: ' + process.env.NODE_ENV);
+      console.log('==================================\n');
       
       try {
         // VerificationTokenの完全な削除

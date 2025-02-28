@@ -58,5 +58,10 @@ export const sendVerificationCode = async (phoneNumber: string, code: string) =>
 };
 
 export const generateVerificationCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log('\n==================================');
+  console.log(`【generateVerificationCode関数内】`);
+  console.log(`生成された認証コード: ${code}`);
+  console.log('==================================\n');
+  return code;
 };

@@ -19,7 +19,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/"
-          className="inline-block bg-navy-700 text-white px-6 py-2 rounded-md hover:bg-navy-800 transition-colors"
+          className="inline-block bg-teal-500 text-white px-6 py-2 rounded-md hover:bg-teal-600 transition-colors"
         >
           トップページに戻る
         </Link>

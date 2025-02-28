@@ -3,17 +3,10 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { useEffect } from 'react';
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
-
-  // セッション状態をログに出力
-  useEffect(() => {
-    console.log('ダッシュボード - セッションステータス:', status);
-    console.log('ダッシュボード - セッションデータ:', session);
-  }, [session, status]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -60,6 +53,7 @@ export default function DashboardPage() {
             <motion.div
               whileHover={{ scale: 1.02 }}
               className="bg-gradient-to-br from-navy-600 to-navy-700 rounded-lg p-6 text-white cursor-pointer"
+              onClick={() => router.push('/mypage')}
             >
               <h3 className="text-lg font-semibold mb-2">プロフィール設定</h3>
               <p className="text-sm opacity-90">

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { FiChevronLeft } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -10,13 +12,11 @@ export default function ChangePasswordPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setIsLoading(true);
 
     // バリデーション
@@ -54,127 +54,128 @@ export default function ChangePasswordPage() {
         throw new Error(data.error || 'パスワードの更新に失敗しました');
       }
 
-      setSuccess('パスワードが正常に更新されました');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-
-      // 3秒後に設定ページに戻る
+      toast.success('パスワードが正常に更新されました');
+      
+      // 設定ページに戻る
       setTimeout(() => {
         router.push('/settings');
-      }, 3000);
+      }, 1500);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'エラーが発生しました');
+      toast.error('パスワードの更新に失敗しました');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-100">
       {/* ヘッダー */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center">
-            <button
-              onClick={() => router.push('/settings')}
-              className="mr-4 text-gray-600 hover:text-gray-800"
-            >
-              ←
-            </button>
-            <h1 className="text-2xl font-bold text-gray-800">
-              パスワード変更
-            </h1>
-          </div>
+      <motion.header 
+        className="bg-white border-b"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="flex items-center p-4">
+          <button
+            onClick={() => router.back()}
+            className="mr-4"
+          >
+            <FiChevronLeft size={24} />
+          </button>
+          <h1 className="text-lg font-medium">パスワードの変更</h1>
         </div>
-      </header>
+      </motion.header>
 
       {/* メインコンテンツ */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-lg shadow p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="currentPassword"
-                className="block text-sm font-medium text-gray-700"
-              >
-                現在のパスワード
-              </label>
-              <input
-                type="password"
-                id="currentPassword"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-navy-600 rounded-md shadow-sm focus:outline-none focus:ring-navy-600 focus:border-navy-600 sm:text-sm"
-                required
-              />
-            </div>
+      <motion.main 
+        className="flex-1 p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        {error && (
+          <motion.div 
+            className="p-3 bg-red-50 text-red-700 rounded-md mb-4"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {error}
+          </motion.div>
+        )}
 
-            <div>
-              <label
-                htmlFor="newPassword"
-                className="block text-sm font-medium text-gray-700"
-              >
-                新しいパスワード
-              </label>
-              <input
-                type="password"
-                id="newPassword"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-navy-600 rounded-md shadow-sm focus:outline-none focus:ring-navy-600 focus:border-navy-600 sm:text-sm"
-                required
-                minLength={8}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                8文字以上で入力してください
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700"
-              >
-                新しいパスワード（確認）
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-navy-600 rounded-md shadow-sm focus:outline-none focus:ring-navy-600 focus:border-navy-600 sm:text-sm"
-                required
-              />
-            </div>
-
-            {error && (
-              <div className="text-red-600 text-sm text-center">{error}</div>
-            )}
-
-            {success && (
-              <div className="text-green-600 text-sm text-center">{success}</div>
-            )}
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              type="submit"
-              disabled={isLoading}
-              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                isLoading
-                  ? 'bg-navy-600 cursor-not-allowed'
-                  : 'bg-navy-700 hover:bg-navy-800'
-              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-600`}
+        <form 
+          onSubmit={handleSubmit} 
+          className="bg-white rounded-lg shadow-sm p-4"
+        >
+          <div className="mb-4">
+            <label
+              htmlFor="currentPassword"
+              className="block text-sm font-medium text-gray-700 mb-1"
             >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                'パスワードを変更'
-              )}
-            </motion.button>
-          </form>
-        </div>
-      </main>
+              現在のパスワード
+            </label>
+            <input
+              type="password"
+              id="currentPassword"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+            />
+          </div>
+
+          <div className="mb-4">
+            <label
+              htmlFor="newPassword"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              新しいパスワード
+            </label>
+            <input
+              type="password"
+              id="newPassword"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+              minLength={8}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              8文字以上で入力してください
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <label
+              htmlFor="confirmPassword"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              新しいパスワード（確認）
+            </label>
+            <input
+              type="password"
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+            />
+          </div>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            type="submit"
+            disabled={isLoading}
+            className={`w-full py-3 rounded-md text-white font-medium ${
+              isLoading ? 'bg-navy-600' : 'bg-navy-700 hover:bg-navy-800'
+            } transition-colors`}
+          >
+            {isLoading ? '更新中...' : 'パスワードを変更する'}
+          </motion.button>
+        </form>
+      </motion.main>
     </div>
   );
 }
