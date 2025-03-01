@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import useSWR, { SWRConfig, mutate } from 'swr';
 
 // アイコンの最適化：必要なアイコンのみをインポート
 import { FiSettings, FiEdit, FiPlusCircle, FiUser, FiChevronRight } from 'react-icons/fi';
@@ -26,6 +27,28 @@ import {
 
 // 画像最適化ユーティリティをインポート
 import { getProfileImageUrl } from '@/app/utils/imageUtils';
+
+// Fetcher関数
+const fetcher = async (url) => {
+  const res = await fetch(url, {
+    headers: {
+      'Cache-Control': 'max-age=30', // 30秒間キャッシュを有効に
+    }
+  });
+  if (!res.ok) throw new Error('API request failed');
+  return res.json();
+};
+
+// 写真のFetcher
+const photoFetcher = async (url) => {
+  const res = await fetch(url, {
+    headers: {
+      'Cache-Control': 'max-age=30',
+    }
+  });
+  if (!res.ok) throw new Error('Photos API error');
+  return res.json();
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -116,57 +139,41 @@ const ProfileSection = ({ userData, mainPhoto, navigateToProfileEdit }) => (
 export default function MyPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [mainPhoto, setMainPhoto] = useState(null);
   const [currentBanner, setCurrentBanner] = useState(1);
-  const [dataFetched, setDataFetched] = useState(false);
   
+  // SWRを使用してユーザーデータを取得
+  const { data: userData, error: userError, isLoading: userLoading } = useSWR(
+    session?.user?.id ? `/api/users/${session.user.id}/profile` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000, // 30秒間は重複リクエストを防止
+      focusThrottleInterval: 10000, // フォーカス時の再検証を10秒間隔に制限
+    }
+  );
+  
+  // SWRを使用して写真データを取得
+  const { data: photos, error: photoError, isLoading: photoLoading } = useSWR(
+    session?.user?.id ? `/api/users/${session.user.id}/photos` : null,
+    photoFetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+      focusThrottleInterval: 10000,
+    }
+  );
+  
+  // メイン写真を検索（photos配列が変更されるたびに再計算）
+  const mainPhoto = photos?.find(photo => photo.isMain) || null;
+  
+  // 全体的なローディング状態
+  const isLoading = userLoading || photoLoading || status === 'loading';
+  
+  // エラー状態
+  const hasError = userError || photoError;
+  
+  // バナーの自動ローテーション
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-    
-    if (status === 'authenticated' && session?.user?.id && !dataFetched) {
-      setDataFetched(true); // 重複フェッチを防止
-      
-      // ユーザーデータと写真データを並列で取得
-      Promise.all([
-        fetch(`/api/users/${session.user.id}/profile`).then(res => res.json()),
-        fetch(`/api/users/${session.user.id}/photos`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        }).then(res => {
-          if (!res.ok) {
-            throw new Error(`Photos API error: ${res.status}`);
-          }
-          return res.json();
-        }).catch(err => {
-          console.error('写真の取得に失敗:', err);
-          return []; // エラー時は空配列を返す
-        })
-      ])
-      .then(([userData, photos]) => {
-        setUserData(userData);
-        
-        // メイン写真を設定
-        const main = photos.find(photo => photo.isMain);
-        if (main) {
-          setMainPhoto(main);
-        }
-        
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('データ取得エラー:', err);
-        setLoading(false);
-      });
-    }
-    
     // バナーローテーション用のタイマー設定
     const bannerTimer = setInterval(() => {
       setCurrentBanner((prev) => (prev % 3) + 1);
@@ -175,7 +182,22 @@ export default function MyPage() {
     return () => {
       clearInterval(bannerTimer);
     };
-  }, [status, session, router, dataFetched]);
+  }, []);
+  
+  // セッションステータスの監視とリダイレクト
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+  
+  // データの手動更新関数
+  const refreshData = useCallback(() => {
+    if (session?.user?.id) {
+      mutate(`/api/users/${session.user.id}/profile`);
+      mutate(`/api/users/${session.user.id}/photos`);
+    }
+  }, [session?.user?.id]);
   
   // 設定ページへ移動
   const navigateToSettings = () => {
@@ -188,7 +210,7 @@ export default function MyPage() {
   };
   
   // ローディング状態の表示を最適化
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <motion.div
@@ -205,7 +227,7 @@ export default function MyPage() {
   }
   
   // エラー状態
-  if (!userData) {
+  if (hasError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <motion.div
@@ -217,9 +239,7 @@ export default function MyPage() {
           <p className="text-gray-600 mb-3">ユーザー情報を読み込めませんでした</p>
           <button 
             onClick={() => {
-              setLoading(true);
-              setDataFetched(false);
-              router.refresh();
+              refreshData();
             }}
             className="bg-teal-500 text-white px-4 py-2 rounded-full text-sm"
           >
