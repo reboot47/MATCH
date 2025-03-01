@@ -444,6 +444,7 @@ export default function DashboardPage() {
         
         if (savedArea) {
           setSearchArea(savedArea);
+          console.log('保存されていた地域を読み込みました:', savedArea);
         }
       } catch (error) {
         console.error('検索条件の読み込みエラー:', error);
@@ -463,6 +464,7 @@ export default function DashboardPage() {
       const params = new URLSearchParams();
       if (searchArea && searchArea !== '全国') {
         params.append('area', searchArea);
+        console.log('検索エリアをAPIに適用:', searchArea);
       }
       params.append('limit', '20');
       
@@ -579,7 +581,7 @@ export default function DashboardPage() {
     if (status === 'authenticated') {
       fetchUsers();
     }
-  }, [activeTab, fetchUsers, status]);
+  }, [activeTab, fetchUsers, status, searchArea, searchParams]);
   
   // 検索エリア変更
   const handleSearchChange = (area) => {
