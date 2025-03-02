@@ -18,7 +18,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const navItems = [
     { name: 'ダッシュボード', path: '/admin', icon: 'dashboard' },
     { name: 'ユーザー管理', path: '/admin/users', icon: 'users' },
-    { name: 'マッチング分析', path: '/admin/analytics', icon: 'analytics' },
+    { name: '統計・分析', path: '/admin/analytics', icon: 'analytics' },
     { name: 'メッセージ監視', path: '/admin/messages', icon: 'chat' },
     { name: '課金管理', path: '/admin/billing', icon: 'billing' },
     { name: '報告・違反', path: '/admin/reports', icon: 'shield' },
@@ -26,7 +26,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { name: 'マーケティング', path: '/admin/marketing', icon: 'marketing' },
     { name: 'イベント管理', path: '/admin/events', icon: 'events' },
     { name: 'サクラアカウント', path: '/admin/fake-accounts', icon: 'fake' },
-    { name: '統計・分析', path: '/admin/statistics', icon: 'stats' },
     { name: '設定', path: '/admin/settings', icon: 'settings' },
   ];
 

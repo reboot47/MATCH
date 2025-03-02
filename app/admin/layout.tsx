@@ -1,23 +1,35 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import AdminLayout from '@/components/admin/AdminLayout';
+import React from 'react';
+import { useSession } from 'next-auth/react';
+import { redirect } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminDashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   
-  // ログインページの場合はナビゲーションを表示しない
-  if (pathname === "/admin/login") {
+  // 管理者ログインページの場合はリダイレクトしない
+  if (pathname === '/admin/login') {
     return <>{children}</>;
   }
-
-  // ログインしていない場合の処理はコンテンツ側で行うため、ここでは単にレンダリング
-  if (status === "loading" || status === "unauthenticated") {
-    return <>{children}</>;
+  
+  // 認証チェック - 未認証ユーザーをログインページにリダイレクト
+  if (status === 'unauthenticated') {
+    redirect('/admin/login'); // 管理者ログインページにリダイレクト
+  }
+  
+  // ロールチェック - 管理者でないユーザーをホームページにリダイレクト
+  if (status === 'authenticated' && 
+      session?.user?.role !== 'admin' && 
+      session?.user?.role !== 'operator') {
+    redirect('/');
   }
 
-  // 緑のメニュー（components/admin/AdminLayout.tsx）を使用するため、
-  // ここではシンプルに子コンポーネントを返すだけ
-  return <>{children}</>;
+  return <AdminLayout>{children}</AdminLayout>;
 }

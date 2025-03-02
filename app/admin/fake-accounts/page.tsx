@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from 'react';
-import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
 
 // モックデータ - サクラアカウント
@@ -80,7 +79,7 @@ export default function FakeAccountsPage() {
   });
 
   return (
-    <AdminLayout>
+    <div className="p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">サクラアカウント管理</h1>
         <p className="text-gray-500 mt-1">システム運用のためのサクラアカウントを管理します</p>
@@ -222,6 +221,6 @@ export default function FakeAccountsPage() {
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </div>
   );
 }
