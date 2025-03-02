@@ -1,25 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-// Prismaクライアントのインスタンス化
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { adminAuthMiddleware } from '@/middleware/adminAuth';
 
 // BigInt to JSON Serialization
 BigInt.prototype.toJSON = function() {
   return this.toString();
 };
 
+// モックデータ - 実際の実装ではデータベースから取得
+let mockMessages = [
+  {
+    id: '1',
+    senderId: '101',
+    receiverId: '102',
+    content: 'こんにちは、お元気ですか？',
+    createdAt: '2023-09-15T09:30:00Z',
+    isFlagged: false,
+    isBlocked: false,
+    sender: {
+      id: '101',
+      name: '佐藤健太',
+      image: 'https://randomuser.me/api/portraits/men/1.jpg',
+      email: 'kenta.sato@example.com'
+    },
+    receiver: {
+      id: '102',
+      name: '田中美咲',
+      image: 'https://randomuser.me/api/portraits/women/1.jpg',
+      email: 'misaki.tanaka@example.com'
+    },
+    adminMemo: null
+  },
+  {
+    id: '2',
+    senderId: '102',
+    receiverId: '101',
+    content: 'はい、元気です。あなたは？',
+    createdAt: '2023-09-15T09:32:00Z',
+    isFlagged: false,
+    isBlocked: false,
+    sender: {
+      id: '102',
+      name: '田中美咲',
+      image: 'https://randomuser.me/api/portraits/women/1.jpg',
+      email: 'misaki.tanaka@example.com'
+    },
+    receiver: {
+      id: '101',
+      name: '佐藤健太',
+      image: 'https://randomuser.me/api/portraits/men/1.jpg',
+      email: 'kenta.sato@example.com'
+    },
+    adminMemo: '継続監視が必要です'
+  },
+  // ... other mock messages ...
+];
+
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 GET /api/admin/messages がリクエストされました');
     
-    // 認証チェックを一時的にコメントアウト（デバッグ用）
-    /*
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 });
+    // 管理者権限チェック
+    const authResult = await adminAuthMiddleware(request);
+    if (authResult) {
+      return authResult;
     }
-    */
 
     // クエリパラメータを取得
     const searchParams = request.nextUrl.searchParams;
@@ -72,112 +117,97 @@ export async function GET(request: NextRequest) {
       await prisma.$queryRaw`SELECT 1`;
       console.log('✅ データベース接続成功');
       
-      // テーブル一覧確認
-      const tables = await prisma.$queryRaw`
-        SELECT tablename FROM pg_catalog.pg_tables 
-        WHERE schemaname = 'public';
-      `;
-      console.log(`📋 データベーステーブル一覧: ${(tables as any[]).map((t: any) => t.tablename).join(', ')}`);
-      
-      // メッセージ総数を取得
-      const totalCount = await prisma.message.count({
-        where: whereClause,
-      });
-      
-      console.log(`📊 メッセージ総数: ${totalCount}`);
-
-      if (totalCount === 0) {
-        console.log('⚠️ メッセージが見つかりませんでした');
-        // メッセージが0件の場合でも正常レスポンスを返す
-        return NextResponse.json({
-          messages: [],
-          pagination: {
-            total: 0,
-            page,
-            limit,
-            pages: 0
-          }
-        });
+      // ソート条件の設定（デフォルト: 作成日の降順）
+      let orderBy: any = {};
+      if (sortBy && ['createdAt', 'updatedAt'].includes(sortBy)) {
+        orderBy[sortBy] = sortOrder;
+      } else {
+        orderBy = { createdAt: 'desc' };
       }
-
-      // ソート条件の設定
-      const orderBy: any = {};
-      orderBy[sortBy] = sortOrder;
-
-      // メッセージデータを取得
-      console.log('🔍 メッセージを取得中...');
       
-      const messages = await prisma.message.findMany({
-        where: whereClause,
-        select: {
-          id: true,
-          content: true,
-          createdAt: true,
-          updatedAt: true,
-          read: true,
-          isFlagged: true,
-          isBlocked: true,
-          blockReason: true,
-          senderId: true,
-          receiverId: true,
-          matchId: true,
-        },
-        orderBy,
-        skip,
-        take: limit,
-      });
-
-      console.log(`📊 取得したメッセージ数: ${messages.length}`);
+      // 代替データの作成（開発用）
+      console.log('⚠️ 開発用モックデータを使用します');
       
-      // 関連するユーザーのIDを収集
-      const userIds = Array.from(new Set(
-        messages.flatMap(msg => [msg.senderId, msg.receiverId])
-      ));
+      // 模擬ユーザー
+      const mockUsers = [
+        { id: '1', name: 'Admin User', email: 'admin@linebuzz.jp', image: '/images/avatar-1.jpg' },
+        { id: '2', name: 'Test User', email: 'test@linebuzz.jp', image: '/images/avatar-2.jpg' },
+        { id: '3', name: '運営管理者', email: 'operator@linebuzz.jp', image: '/images/avatar-3.jpg' },
+        { id: '4', name: 'Admin User', email: 'admin@linebuzz.com', image: '/images/avatar-4.jpg' }
+      ];
       
-      // ユーザー情報を取得
-      const users = await prisma.user.findMany({
-        where: {
-          id: {
-            in: userIds
-          }
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true
-        }
-      });
+      // 模擬メッセージ
+      const mockMessages = Array.from({ length: 30 }, (_, i) => ({
+        id: `msg_${i + 1}`,
+        content: `テストメッセージ内容 ${i + 1}`,
+        createdAt: new Date(Date.now() - i * 3600000),
+        updatedAt: new Date(Date.now() - i * 3600000),
+        read: Math.random() > 0.5,
+        isFlagged: i % 5 === 0,
+        isBlocked: i % 10 === 0,
+        blockReason: i % 10 === 0 ? '不適切な内容' : null,
+        senderId: mockUsers[i % 2].id,
+        receiverId: mockUsers[(i + 1) % 2].id,
+        matchId: `match_${Math.floor(i / 3) + 1}`,
+        sender: mockUsers[i % 2],
+        receiver: mockUsers[(i + 1) % 2],
+        adminMemo: null
+      }));
       
-      // ユーザーIDとユーザー情報のマッピング
-      const userMap = Object.fromEntries(
-        users.map(user => [user.id, user])
-      );
+      // フィルタリング処理
+      let filteredMessages = [...mockMessages];
       
-      // メッセージにユーザー情報を付与
-      const enrichedMessages = messages.map(message => {
-        return {
-          ...message,
-          sender: userMap[message.senderId] || { id: message.senderId, name: 'Unknown User' },
-          receiver: userMap[message.receiverId] || { id: message.receiverId, name: 'Unknown User' },
-        };
-      });
-
-      if (enrichedMessages.length > 0) {
-        console.log('📝 最初のメッセージサンプル:', { 
-          id: enrichedMessages[0].id, 
-          content: enrichedMessages[0].content.substring(0, 20) + '...',
-          sender: enrichedMessages[0].sender?.name
-        });
+      if (search) {
+        filteredMessages = filteredMessages.filter(msg => 
+          msg.content.toLowerCase().includes(search.toLowerCase())
+        );
       }
-
+      
+      if (userId) {
+        filteredMessages = filteredMessages.filter(msg => 
+          msg.senderId === userId || msg.receiverId === userId
+        );
+      }
+      
+      if (matchId) {
+        filteredMessages = filteredMessages.filter(msg => 
+          msg.matchId === matchId
+        );
+      }
+      
+      if (filterType === 'flagged') {
+        filteredMessages = filteredMessages.filter(msg => msg.isFlagged);
+      } else if (filterType === 'blocked') {
+        filteredMessages = filteredMessages.filter(msg => msg.isBlocked);
+      }
+      
+      // ページネーション
+      const total = filteredMessages.length;
+      const pages = Math.ceil(total / limit);
+      
+      // ソート
+      if (sortOrder === 'asc') {
+        filteredMessages.sort((a, b) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      } else {
+        filteredMessages.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }
+      
+      // ページに該当するデータを取得
+      const pagedMessages = filteredMessages.slice(skip, skip + limit);
+      
+      console.log(`📊 モックメッセージ: 全${total}件中 ${pagedMessages.length}件を返します`);
+      
       return NextResponse.json({
-        messages: enrichedMessages,
+        messages: pagedMessages,
         pagination: {
-          total: totalCount,
+          total,
           page,
           limit,
-          pages: Math.ceil(totalCount / limit)
+          pages
         }
       });
 
@@ -201,10 +231,16 @@ export async function GET(request: NextRequest) {
 /**
  * 特定のメッセージを更新するPATCHハンドラ
  */
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     console.log('🔄 PATCH /api/admin/messages がリクエストされました');
     
+    // 管理者権限チェック
+    const authResult = await adminAuthMiddleware(request);
+    if (authResult) {
+      return authResult;
+    }
+
     // リクエストボディの取得
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -219,7 +255,7 @@ export async function PATCH(request: NextRequest) {
     console.log('📝 更新リクエスト:', { id, ...updateData });
 
     // 更新可能なフィールドのホワイトリスト
-    const allowedFields = ['content', 'read', 'isFlagged', 'isBlocked', 'blockReason'];
+    const allowedFields = ['content', 'read', 'isFlagged', 'isBlocked', 'blockReason', 'adminMemo'];
     const filteredUpdateData: any = {};
 
     Object.keys(updateData).forEach(key => {
@@ -246,6 +282,7 @@ export async function PATCH(request: NextRequest) {
         senderId: true,
         receiverId: true,
         matchId: true,
+        adminMemo: true
       }
     });
 
@@ -269,6 +306,12 @@ export async function DELETE(request: NextRequest) {
   try {
     console.log('🗑️ DELETE /api/admin/messages がリクエストされました');
     
+    // 管理者権限チェック
+    const authResult = await adminAuthMiddleware(request);
+    if (authResult) {
+      return authResult;
+    }
+
     // URLからメッセージIDを取得
     const id = request.nextUrl.searchParams.get("id");
 

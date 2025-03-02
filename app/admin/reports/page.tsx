@@ -1,179 +1,202 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { fetchAdminReports, updateAdminReport, deleteAdminReport, updateAdminReportMemo, AdminReportWithUsers } from '@/lib/api/admin';
+import { toast } from 'react-hot-toast';
+import { withAdminAuth } from '@/lib/auth/requireAdmin';
+import ReportDetailModal from '@/components/admin/ReportDetailModal';
 
-// モックデータ - 報告・違反
-const mockReports = [
-  {
-    id: 1,
-    reporterId: 'user_123',
-    reporterName: '田中響子',
-    reportedId: 'user_456',
-    reportedName: '佐藤健太',
-    type: 'inappropriate_behavior',
-    description: 'メッセージで不適切な誘いをしてきました。何度断っても執拗に誘ってきます。',
-    status: 'pending',
-    createdAt: '2025-03-02T15:30:00',
-    updatedAt: '2025-03-02T15:30:00',
-    severity: 'medium',
-    evidenceUrls: ['message_12345.jpg']
-  },
-  {
-    id: 2,
-    reporterId: 'user_234',
-    reporterName: '山田優子',
-    reportedId: 'user_567',
-    reportedName: '高橋雄太',
-    type: 'fake_profile',
-    description: 'プロフィール写真が明らかに別人のものです。芸能人の写真を使用しています。',
-    status: 'investigating',
-    createdAt: '2025-03-02T14:20:00',
-    updatedAt: '2025-03-02T16:15:00',
-    severity: 'medium',
-    evidenceUrls: ['profile_evidence_234.jpg', 'chat_evidence_234.jpg']
-  },
-  {
-    id: 3,
-    reporterId: 'user_345',
-    reporterName: '鈴木美咲',
-    reportedId: 'user_678',
-    reportedName: '伊藤大輔',
-    type: 'harassment',
-    description: '拒否した後も何度もメッセージを送り続けてきます。ストーカー行為のように感じます。',
-    status: 'resolved',
-    createdAt: '2025-03-01T10:45:00',
-    updatedAt: '2025-03-02T13:20:00',
-    resolution: 'warning',
-    severity: 'high',
-    evidenceUrls: ['chat_log_345.jpg', 'message_screenshot_345.jpg']
-  },
-  {
-    id: 4,
-    reporterId: 'user_456',
-    reporterName: '中村美香',
-    reportedId: 'user_789',
-    reportedName: '木村拓也',
-    type: 'inappropriate_content',
-    description: '不適切な画像を送ってきました。',
-    status: 'resolved',
-    createdAt: '2025-03-01T09:30:00',
-    updatedAt: '2025-03-02T11:40:00',
-    resolution: 'banned',
-    severity: 'critical',
-    evidenceUrls: ['evidence_456.jpg']
-  },
-  {
-    id: 5,
-    reporterId: 'user_567',
-    reporterName: '小林健太',
-    reportedId: 'user_890',
-    reportedName: '加藤さくら',
-    type: 'scam',
-    description: 'お金を要求してきました。外部サイトに誘導しようとしています。',
-    status: 'investigating',
-    createdAt: '2025-03-01T08:15:00',
-    updatedAt: '2025-03-02T10:30:00',
-    severity: 'high',
-    evidenceUrls: ['chat_evidence_567.jpg', 'link_evidence_567.jpg']
-  },
-  {
-    id: 6,
-    reporterId: 'user_678',
-    reporterName: '渡辺隆',
-    reportedId: 'user_901',
-    reportedName: '斎藤由美',
-    type: 'underage',
-    description: 'プロフィールには25歳となっていますが、会話の中で高校生だと言っていました。',
-    status: 'pending',
-    createdAt: '2025-03-01T16:40:00',
-    updatedAt: '2025-03-01T16:40:00',
-    severity: 'high',
-    evidenceUrls: ['chat_screenshot_678.jpg']
-  },
-  {
-    id: 7,
-    reporterId: 'user_789',
-    reporterName: '松本拓也',
-    reportedId: 'user_012',
-    reportedName: '井上智子',
-    type: 'other',
-    description: '複数のアカウントを使い分けているようです。同じ人物が別のアカウントから連絡してきました。',
-    status: 'pending',
-    createdAt: '2025-03-01T15:20:00',
-    updatedAt: '2025-03-01T15:20:00',
-    severity: 'low',
-    evidenceUrls: ['profile_comparison_789.jpg']
-  }
-];
+interface Report {
+  id: number;
+  reporterId: string;
+  reporterName: string;
+  reportedId: string;
+  reportedName: string;
+  type: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  severity: string;
+  resolution?: string;
+  evidenceUrls: string[];
+  notes?: string;
+}
 
-// 報告タイプの日本語表記
-const reportTypeLabels = {
-  inappropriate_behavior: '不適切な行動',
-  fake_profile: '偽プロフィール',
-  harassment: 'ハラスメント',
-  inappropriate_content: '不適切なコンテンツ',
-  scam: '詐欺行為',
-  underage: '未成年',
-  other: 'その他'
-};
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
 
-// 報告ステータスの日本語表記
-const reportStatusLabels = {
-  pending: '保留中',
-  investigating: '調査中',
-  resolved: '解決済み'
-};
-
-// 解決方法の日本語表記
-const resolutionLabels = {
-  warning: '警告',
-  banned: 'アカウント停止',
-  dismissed: '却下',
-  monitoring: '監視継続'
-};
-
-// 重大度の日本語表記と色
-const severityConfig = {
-  low: { label: '低', color: 'bg-blue-100 text-blue-800' },
-  medium: { label: '中', color: 'bg-yellow-100 text-yellow-800' },
-  high: { label: '高', color: 'bg-orange-100 text-orange-800' },
-  critical: { label: '最高', color: 'bg-red-100 text-red-800' }
-};
-
-const ReportsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  
-  // フィルタリングされた報告
-  const filteredReports = mockReports.filter(report => {
-    // 検索語句によるフィルタリング
-    const matchesSearch = 
-      report.reporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.reportedName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // タブによるフィルタリング
-    const matchesTab = 
-      activeTab === 'all' || 
-      report.status === activeTab;
-    
-    // 報告タイプによるフィルタリング
-    const matchesType = filterType === 'all' || report.type === filterType;
-    
-    return matchesSearch && matchesTab && matchesType;
+// 報告・違反管理ページ
+function ReportsPage() {
+  // 状態管理
+  const [reports, setReports] = useState<AdminReportWithUsers[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0
   });
-  
-  // 日付のフォーマット
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  // 詳細モーダル表示のための状態
+  const [selectedReport, setSelectedReport] = useState<AdminReportWithUsers | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+
+  // フィルタ状態
+  const [filters, setFilters] = useState({
+    status: '',
+    severity: '',
+    search: '',
+  });
+
+  // データ読み込み
+  useEffect(() => {
+    loadReports();
+  }, [filters, pagination.page]);
+
+  // 報告データを読み込む
+  const loadReports = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchAdminReports({
+        page: pagination.page,
+        limit: pagination.limit,
+        status: filters.status || undefined,
+        severity: filters.severity || undefined,
+        search: filters.search || undefined
+      });
+
+      setReports(response.data);
+      setPagination({
+        ...pagination,
+        total: response.pagination.total,
+        pages: response.pagination.pages
+      });
+    } catch (err) {
+      console.error('報告データの読み込みに失敗しました:', err);
+      setError('報告データの読み込みに失敗しました。再度お試しください。');
+      toast.error('報告データの読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ステータス変更処理
+  const handleStatusChange = async (id: string, status: string) => {
+    setLoading(true);
+    try {
+      await updateAdminReport(id, { status });
+      toast.success(`報告のステータスが "${status}" に更新されました`);
+      
+      // データを再読み込み
+      loadReports();
+    } catch (error) {
+      console.error('Error updating report status:', error);
+      toast.error('報告の更新に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // メモ保存処理
+  const handleSaveMemo = async (id: string, memo: string) => {
+    try {
+      await updateAdminReportMemo(id, memo);
+      toast.success('管理者メモが保存されました');
+      
+      // データを再読み込み
+      loadReports();
+    } catch (error) {
+      console.error('Error saving memo:', error);
+      toast.error('メモの保存に失敗しました');
+    }
+  };
+
+  // 報告を処理する
+  const handleReportAction = async (id: string, action: string, resolution?: string) => {
+    setLoading(true);
+    
+    try {
+      let status;
+      switch (action) {
+        case 'investigate':
+          status = 'investigating';
+          break;
+        case 'resolve':
+          status = 'resolved';
+          break;
+        case 'reopen':
+          status = 'pending';
+          break;
+        default:
+          throw new Error('Invalid action');
+      }
+      
+      await updateAdminReport(id, { 
+        status, 
+        resolution: resolution || undefined 
+      });
+      
+      toast.success(`報告が${
+        action === 'investigate' ? '調査中' : 
+        action === 'resolve' ? '解決済み' : 
+        '再開'
+      }に変更されました`);
+      
+      // 報告リストを再読み込み
+      loadReports();
+    } catch (err) {
+      console.error('報告の更新に失敗しました:', err);
+      toast.error('報告の更新に失敗しました');
+    } finally {
+      setLoading(false);
+    }
   };
   
-  // 報告タイプのリスト（重複なし）
-  const reportTypes = ['all', ...new Set(mockReports.map(report => report.type))];
-  
+  // 報告を削除する
+  const handleDeleteReport = async (id: string) => {
+    if (!confirm('この報告を削除してもよろしいですか？この操作は元に戻せません。')) {
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      await deleteAdminReport(id);
+      toast.success('報告が削除されました');
+      
+      // 報告リストを再読み込み
+      loadReports();
+    } catch (err) {
+      console.error('報告の削除に失敗しました:', err);
+      toast.error('報告の削除に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 詳細モーダルを開く
+  const openDetailModal = (report: AdminReportWithUsers) => {
+    setSelectedReport(report);
+    setIsDetailModalOpen(true);
+  };
+
+  // 詳細モーダルを閉じる
+  const closeDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedReport(null);
+  };
+
   return (
     <div className="p-6">
       <motion.div
@@ -209,33 +232,63 @@ const ReportsPage: React.FC = () => {
                 type="text"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="ユーザー名や報告内容を検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">報告タイプ</label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="all">すべてのタイプ</option>
-                {reportTypes.filter(type => type !== 'all').map((type) => (
-                  <option key={type} value={type}>
-                    {reportTypeLabels[type as keyof typeof reportTypeLabels] || type}
-                  </option>
-                ))}
-              </select>
+            <div className="flex space-x-2 mb-4">
+              {[
+                { value: '', label: '全て' },
+                { value: 'pending', label: '保留中' }, 
+                { value: 'investigating', label: '調査中' }, 
+                { value: 'resolved', label: '解決済' }
+              ].map((statusOption) => (
+                <button
+                  key={statusOption.value}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                    filters.status === statusOption.value
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setFilters({ ...filters, status: statusOption.value })}
+                >
+                  {statusOption.label}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex space-x-2 mb-4">
+              {[
+                { value: '', label: '全ての重要度' },
+                { value: 'low', label: '低' }, 
+                { value: 'medium', label: '中' }, 
+                { value: 'high', label: '高' },
+                { value: 'critical', label: '最重要' }
+              ].map((severityOption) => (
+                <button
+                  key={severityOption.value}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                    filters.severity === severityOption.value
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  onClick={() => setFilters({ ...filters, severity: severityOption.value })}
+                >
+                  {severityOption.label}
+                </button>
+              ))}
             </div>
             
             <div className="flex items-end">
               <button 
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-medium text-sm transition-colors duration-200"
                 onClick={() => {
-                  setSearchTerm('');
-                  setFilterType('all');
+                  setFilters({
+                    status: '',
+                    severity: '',
+                    search: '',
+                  });
                 }}
               >
                 フィルターをリセット
@@ -249,26 +302,26 @@ const ReportsPage: React.FC = () => {
           <div className="border-b">
             <div className="flex">
               <button
-                className={`px-4 py-3 font-medium ${activeTab === 'all' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('all')}
+                className={`px-4 py-3 font-medium ${filters.status === '' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setFilters({ ...filters, status: '' })}
               >
-                すべて
+                全て
               </button>
               <button
-                className={`px-4 py-3 font-medium ${activeTab === 'pending' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('pending')}
+                className={`px-4 py-3 font-medium ${filters.status === 'pending' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setFilters({ ...filters, status: 'pending' })}
               >
                 保留中
               </button>
               <button
-                className={`px-4 py-3 font-medium ${activeTab === 'investigating' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('investigating')}
+                className={`px-4 py-3 font-medium ${filters.status === 'investigating' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setFilters({ ...filters, status: 'investigating' })}
               >
                 調査中
               </button>
               <button
-                className={`px-4 py-3 font-medium ${activeTab === 'resolved' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('resolved')}
+                className={`px-4 py-3 font-medium ${filters.status === 'resolved' ? 'text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setFilters({ ...filters, status: 'resolved' })}
               >
                 解決済み
               </button>
@@ -276,116 +329,256 @@ const ReportsPage: React.FC = () => {
           </div>
           
           {/* 報告リスト */}
-          <div className="p-6">
-            {filteredReports.length > 0 ? (
-              <div className="space-y-6">
-                {filteredReports.map((report) => (
-                  <motion.div
-                    key={report.id}
-                    className="border rounded-lg overflow-hidden bg-gray-50 hover:bg-blue-50 transition-colors duration-200"
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <div className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-800">
-                              {reportTypeLabels[report.type as keyof typeof reportTypeLabels]}
-                            </h3>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              report.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              report.status === 'investigating' ? 'bg-blue-100 text-blue-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {reportStatusLabels[report.status as keyof typeof reportStatusLabels]}
-                            </span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${severityConfig[report.severity as keyof typeof severityConfig].color}`}>
-                              重大度: {severityConfig[report.severity as keyof typeof severityConfig].label}
-                            </span>
-                          </div>
-                          
-                          <div className="mb-2">
+          <div className="mt-8 flex flex-col">
+            <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-300">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th
+                          scope="col"
+                          className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"
+                        >
+                          報告者
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          報告対象
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          種類
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          ステータス
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          重要度
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                        >
+                          日時
+                        </th>
+                        <th
+                          scope="col"
+                          className="relative py-3.5 pl-3 pr-4 sm:pr-6"
+                        >
+                          <span className="sr-only">操作</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {reports.map((report) => (
+                        <tr key={report.id}>
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                             <div className="flex items-center">
-                              <span className="font-medium text-gray-800">報告者:</span>
-                              <span className="ml-2 text-gray-700">{report.reporterName}</span>
+                              <div className="h-10 w-10 flex-shrink-0">
+                                <img
+                                  className="h-10 w-10 rounded-full"
+                                  src={report.reporter?.image || `https://ui-avatars.com/api/?name=${report.reporter?.name || 'User'}&background=random`}
+                                  alt=""
+                                />
+                              </div>
+                              <div className="ml-4">
+                                <div className="font-medium text-gray-900">
+                                  {report.reporter?.name || '不明なユーザー'}
+                                </div>
+                                <div className="text-gray-500">ID: {report.reporterId}</div>
+                              </div>
                             </div>
-                            <div className="flex items-center mt-1">
-                              <span className="font-medium text-gray-800">報告対象:</span>
-                              <span className="ml-2 text-gray-700">{report.reportedName}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            <div className="flex items-center">
+                              <div className="h-10 w-10 flex-shrink-0">
+                                <img
+                                  className="h-10 w-10 rounded-full"
+                                  src={report.reported?.image || `https://ui-avatars.com/api/?name=${report.reported?.name || 'User'}&background=random`}
+                                  alt=""
+                                />
+                              </div>
+                              <div className="ml-4">
+                                <div className="font-medium text-gray-900">
+                                  {report.reported?.name || '不明なユーザー'}
+                                </div>
+                                <div className="text-gray-500">ID: {report.reportedId}</div>
+                              </div>
                             </div>
-                          </div>
-                          
-                          <div className="bg-white p-3 rounded border mb-3">
-                            <p className="text-gray-700">{report.description}</p>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {report.evidenceUrls.map((url, index) => (
-                              <span key={index} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                                証拠 #{index + 1}: {url}
-                              </span>
-                            ))}
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-                            <span>報告日時: {formatDate(report.createdAt)}</span>
-                            <span>最終更新: {formatDate(report.updatedAt)}</span>
-                            {report.resolution && (
-                              <span className="font-medium">
-                                解決方法: {resolutionLabels[report.resolution as keyof typeof resolutionLabels]}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col space-y-2 ml-4">
-                          <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200">
-                            詳細を見る
-                          </button>
-                          {report.status !== 'resolved' && (
-                            <>
-                              <button className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1 rounded text-sm transition-colors duration-200">
-                                調査中に変更
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {report.type}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {report.status}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {report.severity}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {report.createdAt}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end space-x-2">
+                              <button
+                                onClick={() => openDetailModal(report)}
+                                className="text-blue-600 hover:text-blue-900 font-semibold"
+                              >
+                                詳細
                               </button>
-                              <button className="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded text-sm transition-colors duration-200">
-                                解決済みに変更
+                              {report.status !== 'investigating' && (
+                                <button
+                                  onClick={() => handleReportAction(report.id.toString(), 'investigate')}
+                                  className="text-yellow-600 hover:text-yellow-900"
+                                >
+                                  調査
+                                </button>
+                              )}
+                              {report.status !== 'resolved' && (
+                                <button
+                                  onClick={() => handleReportAction(report.id.toString(), 'resolve')}
+                                  className="text-green-600 hover:text-green-900"
+                                >
+                                  解決
+                                </button>
+                              )}
+                              {report.status === 'resolved' && (
+                                <button
+                                  onClick={() => handleReportAction(report.id.toString(), 'reopen')}
+                                  className="text-blue-600 hover:text-blue-900"
+                                >
+                                  再開
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteReport(report.id.toString())}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                削除
                               </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {report.status !== 'resolved' && (
-                        <div className="mt-4 flex flex-wrap justify-end gap-2">
-                          <button className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded text-sm transition-colors duration-200">
-                            アカウント停止
-                          </button>
-                          <button className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1 rounded text-sm transition-colors duration-200">
-                            警告を送信
-                          </button>
-                          <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm transition-colors duration-200">
-                            報告者に連絡
-                          </button>
-                          <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm transition-colors duration-200">
-                            対象者に連絡
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-500">該当する報告はありません</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
+        
+        {/* ページネーション */}
+        {pagination.pages > 1 && (
+          <div className="mt-4 flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setPagination({ ...pagination, page: Math.max(1, pagination.page - 1) })}
+                disabled={pagination.page === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-offset-0 disabled:opacity-50"
+              >
+                前へ
+              </button>
+              <button
+                onClick={() => setPagination({ ...pagination, page: Math.min(pagination.pages, pagination.page + 1) })}
+                disabled={pagination.page === pagination.pages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-offset-0 disabled:opacity-50"
+              >
+                次へ
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  <span>{pagination.total} 件中 </span>
+                  <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1} </span>
+                  <span>から </span>
+                  <span className="font-medium">
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span>
+                  <span> 件を表示</span>
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setPagination({ ...pagination, page: Math.max(1, pagination.page - 1) })}
+                    disabled={pagination.page === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  >
+                    <span className="sr-only">前へ</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                    let pageNum;
+                    if (pagination.pages <= 5) {
+                      pageNum = i + 1;
+                    } else if (pagination.page <= 3) {
+                      pageNum = i + 1;
+                    } else if (pagination.page >= pagination.pages - 2) {
+                      pageNum = pagination.pages - 4 + i;
+                    } else {
+                      pageNum = pagination.page - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPagination({ ...pagination, page: pageNum })}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                          pageNum === pagination.page
+                            ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => setPagination({ ...pagination, page: Math.min(pagination.pages, pagination.page + 1) })}
+                    disabled={pagination.page === pagination.pages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  >
+                    <span className="sr-only">次へ</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
+      
+      {/* 詳細モーダル */}
+      {selectedReport && (
+        <ReportDetailModal
+          isOpen={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          report={selectedReport}
+          onStatusChange={handleStatusChange}
+          onSaveMemo={handleSaveMemo}
+        />
+      )}
     </div>
   );
-};
+}
 
-export default ReportsPage;
+export default withAdminAuth(ReportsPage);

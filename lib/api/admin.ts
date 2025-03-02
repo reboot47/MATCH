@@ -1,7 +1,7 @@
 // lib/api/admin.ts
 // 管理画面API関数
 
-import { Message, User } from '@prisma/client';
+import { Message, User, Report } from '@prisma/client';
 
 // 管理者API基本URL
 const BASE_API_URL = '/api/admin';
@@ -12,6 +12,13 @@ export type AdminMessageWithUsers = Message & {
   isFlagged?: boolean;
   isBlocked?: boolean;
   blockReason?: string;
+  adminMemo?: string;
+};
+
+export type AdminReportWithUsers = Report & {
+  reporter: User;
+  reported: User;
+  adminMemo?: string;
 };
 
 export type PaginatedResponse<T> = {
@@ -109,17 +116,15 @@ export async function updateAdminMessage(
     isFlagged?: boolean;
     isBlocked?: boolean;
     blockReason?: string;
+    adminMemo?: string;
   }
 ): Promise<AdminMessageWithUsers> {
-  const response = await fetch(`${BASE_API_URL}/messages`, {
+  const response = await fetch(`${BASE_API_URL}/messages/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      id,
-      ...updates
-    }),
+    body: JSON.stringify(updates),
   });
   
   if (!response.ok) {
@@ -134,7 +139,7 @@ export async function updateAdminMessage(
  * 特定のメッセージを削除する
  */
 export async function deleteAdminMessage(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${BASE_API_URL}/messages?id=${id}`, {
+  const response = await fetch(`${BASE_API_URL}/messages/${id}`, {
     method: 'DELETE',
   });
   
@@ -147,7 +152,7 @@ export async function deleteAdminMessage(id: string): Promise<{ success: boolean
 }
 
 /**
- * ユーザー情報を取得する（メッセージ管理で使用）
+ * 管理者用ユーザー情報を取得する
  */
 export async function fetchAdminUsers(
   params: {
@@ -156,15 +161,140 @@ export async function fetchAdminUsers(
     search?: string;
   } = {}
 ): Promise<PaginatedResponse<User>> {
-  // APIがまだ実装されていない場合はダミーデータを返す
-  // TODO: 実際のAPIが実装されたら差し替える
-  return {
-    data: [],
-    pagination: {
-      total: 0,
-      page: params.page || 1,
-      limit: params.limit || 10,
-      pages: 0
+  const { page = 1, limit = 10, search = '' } = params;
+  const url = new URL(`${BASE_API_URL}/users`, window.location.origin);
+  
+  url.searchParams.append('page', page.toString());
+  url.searchParams.append('limit', limit.toString());
+  if (search) url.searchParams.append('search', search);
+  
+  try {
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch users: ${response.statusText}`);
     }
-  };
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    throw error;
+  }
+}
+
+/**
+ * 管理者用違反報告一覧を取得する
+ */
+export async function fetchAdminReports(
+  params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    severity?: string;
+    search?: string;
+  } = {}
+): Promise<PaginatedResponse<AdminReportWithUsers>> {
+  const { page = 1, limit = 10, status, severity, search } = params;
+  const url = new URL(`${BASE_API_URL}/reports`, window.location.origin);
+  
+  url.searchParams.append('page', page.toString());
+  url.searchParams.append('limit', limit.toString());
+  if (status) url.searchParams.append('status', status);
+  if (severity) url.searchParams.append('severity', severity);
+  if (search) url.searchParams.append('search', search);
+  
+  try {
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch reports: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    throw error;
+  }
+}
+
+/**
+ * 特定の違反報告を更新する
+ */
+export async function updateAdminReport(
+  id: string,
+  updates: {
+    status?: string;
+    severity?: string;
+    resolution?: string;
+    adminMemo?: string;
+  }
+): Promise<AdminReportWithUsers> {
+  try {
+    const response = await fetch(`${BASE_API_URL}/reports`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id, ...updates }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `Failed to update report: ${response.statusText}. ${
+          errorData.message || ''
+        }`
+      );
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating report:', error);
+    throw error;
+  }
+}
+
+/**
+ * 特定の違反報告を削除する
+ */
+export async function deleteAdminReport(id: string): Promise<{ success: boolean }> {
+  try {
+    const response = await fetch(`${BASE_API_URL}/reports`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `Failed to delete report: ${response.statusText}. ${
+          errorData.message || ''
+        }`
+      );
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    throw error;
+  }
+}
+
+/**
+ * メッセージの管理メモを更新する
+ */
+export async function updateAdminMessageMemo(
+  id: string,
+  memo: string
+): Promise<AdminMessageWithUsers> {
+  return updateAdminMessage(id, { adminMemo: memo });
+}
+
+/**
+ * 報告の管理メモを更新する
+ */
+export async function updateAdminReportMemo(
+  id: string,
+  memo: string
+): Promise<AdminReportWithUsers> {
+  return updateAdminReport(id, { adminMemo: memo });
 }

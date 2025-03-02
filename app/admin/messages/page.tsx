@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { fetchAdminMessages, updateAdminMessage, deleteAdminMessage } from '@/lib/api/admin';
+import { fetchAdminMessages, updateAdminMessage, deleteAdminMessage, updateAdminMessageMemo } from '@/lib/api/admin';
 import styles from './messages.module.css';
+import { withAdminAuth } from '@/lib/auth/requireAdmin';
+import MessageDetailModal from '@/components/admin/MessageDetailModal';
 
 // インターフェース定義
 interface Message {
@@ -30,6 +32,7 @@ interface Message {
   isFlagged: boolean;
   isBlocked: boolean;
   blockReason: string;
+  memo?: string;
 }
 
 interface ApiResponse {
@@ -55,11 +58,9 @@ const MessagesMonitoringPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [actionReason, setActionReason] = useState('');
-  const [actionType, setActionType] = useState<'flag' | 'unflag' | 'block' | 'unblock' | null>(null);
-  const [isActionProcessing, setIsActionProcessing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null);
-  
+  const [isActionProcessing, setIsActionProcessing] = useState(false);
+
   // メッセージデータの取得
   const fetchMessageData = useCallback(async () => {
     setIsLoading(true);
@@ -166,32 +167,20 @@ const MessagesMonitoringPage: React.FC = () => {
   const closeDetailModal = () => {
     setShowDetailModal(false);
     setSelectedMessage(null);
-    setActionType(null);
-    setActionReason('');
     setActionFeedback(null);
   };
   
-  // アクションフォームを表示
-  const showActionForm = (type: 'flag' | 'unflag' | 'block' | 'unblock') => {
-    setActionType(type);
-  };
-  
   // アクション実行
-  const executeAction = async () => {
-    if (!selectedMessage || !actionType) return;
-    
+  const handleMessageAction = async (messageId: string, action: string) => {
     setIsActionProcessing(true);
     setActionFeedback(null);
     
     try {
-      const messageId = selectedMessage.id;
-      
       // 実際のAPIに接続
-      switch (actionType) {
+      switch (action) {
         case 'flag':
           await updateAdminMessage(messageId, {
-            isFlagged: true,
-            blockReason: actionReason || undefined
+            isFlagged: true
           });
           setActionFeedback({
             type: 'success',
@@ -211,8 +200,7 @@ const MessagesMonitoringPage: React.FC = () => {
           
         case 'block':
           await updateAdminMessage(messageId, {
-            isBlocked: true,
-            blockReason: actionReason || undefined
+            isBlocked: true
           });
           setActionFeedback({
             type: 'success',
@@ -234,38 +222,6 @@ const MessagesMonitoringPage: React.FC = () => {
       // 成功したらデータを再取得
       await fetchMessageData();
       
-      // 選択中のメッセージも更新
-      if (selectedMessage) {
-        switch (actionType) {
-          case 'flag':
-            setSelectedMessage({
-              ...selectedMessage,
-              isFlagged: true,
-              blockReason: actionReason || selectedMessage.blockReason
-            });
-            break;
-          case 'unflag':
-            setSelectedMessage({
-              ...selectedMessage,
-              isFlagged: false
-            });
-            break;
-          case 'block':
-            setSelectedMessage({
-              ...selectedMessage,
-              isBlocked: true,
-              blockReason: actionReason || selectedMessage.blockReason
-            });
-            break;
-          case 'unblock':
-            setSelectedMessage({
-              ...selectedMessage,
-              isBlocked: false
-            });
-            break;
-        }
-      }
-      
     } catch (err) {
       console.error('アクション実行エラー:', err);
       setActionFeedback({
@@ -276,7 +232,7 @@ const MessagesMonitoringPage: React.FC = () => {
       setIsActionProcessing(false);
     }
   };
-  
+
   // メッセージ削除ハンドラー
   const handleDeleteMessage = async (messageId: string) => {
     if (!confirm('このメッセージを削除しますか？この操作は元に戻せません。')) {
@@ -306,7 +262,27 @@ const MessagesMonitoringPage: React.FC = () => {
       });
     }
   };
-  
+
+  // メモ保存処理
+  const handleSaveMemo = async (id: string, memo: string) => {
+    try {
+      await updateAdminMessageMemo(id, memo);
+      setActionFeedback({
+        type: 'success',
+        message: '管理者メモが保存されました'
+      });
+      
+      // データを再読み込み
+      await fetchMessageData();
+    } catch (err) {
+      console.error('メモ保存エラー:', err);
+      setActionFeedback({
+        type: 'error',
+        message: 'メモの保存に失敗しました'
+      });
+    }
+  };
+
   // ページネーションコンポーネント
   const Pagination = () => {
     const totalPages = Math.ceil(totalMessages / limit);
@@ -475,153 +451,16 @@ const MessagesMonitoringPage: React.FC = () => {
         </>
       )}
       
-      {showDetailModal && selectedMessage && (
-        <div className={styles['modal-backdrop']} onClick={closeDetailModal}>
-          <motion.div 
-            className={styles['modal-content']}
-            onClick={(e) => e.stopPropagation()}
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-          >
-            <div className={styles['modal-header']}>
-              <h2>メッセージ詳細</h2>
-              <button className={styles['close-button']} onClick={closeDetailModal}>×</button>
-            </div>
-            
-            <div className={styles['modal-body']}>
-              <div className={styles['message-detail-section']}>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>送信者:</span>
-                  <span className={styles['detail-value']}>{selectedMessage.sender?.name || '不明なユーザー'}</span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>受信者:</span>
-                  <span className={styles['detail-value']}>{selectedMessage.receiver?.name || '不明なユーザー'}</span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>日時:</span>
-                  <span className={styles['detail-value']}>{new Date(selectedMessage.createdAt).toLocaleString()}</span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>メッセージID:</span>
-                  <span className={styles['detail-value'] + ' ' + styles['message-id']}>{selectedMessage.id}</span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>既読状態:</span>
-                  <span className={styles['detail-value'] + ' ' + (selectedMessage.read ? styles['read'] : styles['unread'])}>
-                    {selectedMessage.read ? '既読' : '未読'}
-                  </span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>フラグ:</span>
-                  <span className={styles['detail-value'] + ' ' + (selectedMessage.isFlagged ? styles['flagged'] : '')}>
-                    {selectedMessage.isFlagged ? 'フラグあり' : 'なし'}
-                  </span>
-                </div>
-                <div className={styles['detail-row']}>
-                  <span className={styles['detail-label']}>ブロック:</span>
-                  <span className={styles['detail-value'] + ' ' + (selectedMessage.isBlocked ? styles['blocked'] : '')}>
-                    {selectedMessage.isBlocked ? 'ブロック中' : 'なし'}
-                  </span>
-                </div>
-                {selectedMessage.blockReason && (
-                  <div className={styles['detail-row']}>
-                    <span className={styles['detail-label']}>ブロック理由:</span>
-                    <span className={styles['detail-value']}>
-                      {selectedMessage.blockReason}
-                    </span>
-                  </div>
-                )}
-                <div className={styles['detail-row'] + ' ' + styles['content-row']}>
-                  <span className={styles['detail-label']}>内容:</span>
-                  <div className={styles['message-content-box']}>
-                    {selectedMessage.content}
-                  </div>
-                </div>
-              </div>
-              
-              {actionFeedback && (
-                <div className={styles['feedback-message'] + ' ' + (actionFeedback.type === 'success' ? styles['success'] : styles['error'])}>
-                  {actionFeedback.message}
-                </div>
-              )}
-              
-              {actionType ? (
-                <div className={styles['action-form']}>
-                  <h3>{actionType === 'flag' ? 'フラグを付ける理由' : 
-                       actionType === 'unflag' ? 'フラグを解除する理由' :
-                       actionType === 'block' ? 'ブロックする理由' : 
-                       'ブロックを解除する理由'}</h3>
-                  
-                  <textarea 
-                    value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
-                    placeholder="理由を入力してください（オプション）"
-                    className={styles['reason-textarea']}
-                  />
-                  
-                  <div className={styles['action-buttons']}>
-                    <button 
-                      className={styles['cancel-button']}
-                      onClick={() => setActionType(null)}
-                      disabled={isActionProcessing}
-                    >
-                      キャンセル
-                    </button>
-                    <button 
-                      className={styles['confirm-button'] + ' ' + styles[actionType]}
-                      onClick={executeAction}
-                      disabled={isActionProcessing}
-                    >
-                      {isActionProcessing ? '処理中...' : 
-                        actionType === 'flag' ? 'フラグを付ける' : 
-                        actionType === 'unflag' ? 'フラグを解除する' :
-                        actionType === 'block' ? 'ブロックする' : 
-                        'ブロックを解除する'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className={styles['action-buttons-container']}>
-                  <button 
-                    className={styles['action-button'] + ' ' + styles['flag-button'] + ' ' + (selectedMessage.isFlagged ? styles['hidden'] : '')}
-                    onClick={() => showActionForm('flag')}
-                  >
-                    フラグを付ける
-                  </button>
-                  <button 
-                    className={styles['action-button'] + ' ' + styles['unflag-button'] + ' ' + (!selectedMessage.isFlagged ? styles['hidden'] : '')}
-                    onClick={() => showActionForm('unflag')}
-                  >
-                    フラグを解除
-                  </button>
-                  <button 
-                    className={styles['action-button'] + ' ' + styles['block-button'] + ' ' + (selectedMessage.isBlocked ? styles['hidden'] : '')}
-                    onClick={() => showActionForm('block')}
-                  >
-                    ブロック
-                  </button>
-                  <button 
-                    className={styles['action-button'] + ' ' + styles['unblock-button'] + ' ' + (!selectedMessage.isBlocked ? styles['hidden'] : '')}
-                    onClick={() => showActionForm('unblock')}
-                  >
-                    ブロック解除
-                  </button>
-                  <button 
-                    className={styles['action-button'] + ' ' + styles['delete-button']}
-                    onClick={() => handleDeleteMessage(selectedMessage.id)}
-                  >
-                    削除
-                  </button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* 詳細モーダル */}
+      <MessageDetailModal
+        message={selectedMessage}
+        isOpen={showDetailModal}
+        onClose={closeDetailModal}
+        onStatusChange={handleMessageAction}
+        onSaveMemo={handleSaveMemo}
+      />
     </div>
   );
 };
 
-export default MessagesMonitoringPage;
+export default withAdminAuth(MessagesMonitoringPage);
