@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import NotificationsPanel from './notifications/NotificationsPanel';
-import { signOut } from '@/app/api/auth/[...nextauth]/route';
+import { signOut } from 'next-auth/react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
