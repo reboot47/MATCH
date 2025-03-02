@@ -24,7 +24,14 @@ const mockUsers = [
     name: "Admin User",
     email: "admin@linebuzz.jp",
     hashedPassword: hashPassword("admin123"), // 本番では安全なパスワードを使用してください
-    role: "admin"
+    role: "ADMIN"
+  },
+  {
+    id: "4",
+    name: "Admin User",
+    email: "admin@linebuzz.com",
+    hashedPassword: hashPassword("password123"), // 本番では安全なパスワードを使用してください
+    role: "ADMIN"
   },
   {
     id: "2",
