@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
+  <rect width="400" height="600" fill="#f0f0f0"/>
+  <rect x="100" y="150" width="200" height="150" fill="#e0e0e0"/>
+  <line x1="100" y1="150" x2="300" y2="300" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="300" y1="150" x2="100" y2="300" stroke="#d0d0d0" stroke-width="2"/>
+  <text x="200" y="350" text-anchor="middle" font-family="Arial" font-size="20" fill="#808080">読み込み中...</text>
+</svg>

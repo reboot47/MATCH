@@ -1,0 +1,187 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
+import { 
+  HiOutlineHome, 
+  HiOutlineUsers, 
+  HiOutlineCog, 
+  HiOutlineChat,
+  HiOutlineLogout,
+  HiOutlineChartBar,
+  HiOutlineCurrencyYen,
+  HiOutlineShieldCheck,
+  HiOutlineDocumentReport,
+  HiOutlineMenu,
+  HiOutlineX
+} from "react-icons/hi";
+import { useState, useEffect } from "react";
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // ログインページの場合はナビゲーションを表示しない
+  if (pathname === "/admin/login") {
+    return <>{children}</>;
+  }
+
+  // ログインしていない場合の処理はコンテンツ側で行うため、ここでは単にレンダリング
+  if (status === "loading" || status === "unauthenticated") {
+    return <>{children}</>;
+  }
+
+  const navigation = [
+    { name: "ダッシュボード", href: "/admin/dashboard", icon: HiOutlineHome },
+    { name: "ユーザー管理", href: "/admin/users", icon: HiOutlineUsers },
+    { name: "マッチング分析", href: "/admin/analytics", icon: HiOutlineChartBar },
+    { name: "メッセージ監視", href: "/admin/messages", icon: HiOutlineChat },
+    { name: "課金管理", href: "/admin/billing", icon: HiOutlineCurrencyYen },
+    { name: "報告・違反", href: "/admin/reports", icon: HiOutlineShieldCheck },
+    { name: "統計レポート", href: "/admin/statistics", icon: HiOutlineDocumentReport },
+    { name: "設定", href: "/admin/settings", icon: HiOutlineCog },
+  ];
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* モバイルメニューボタン */}
+      <div className="lg:hidden fixed top-0 right-0 p-4 z-50">
+        <button
+          onClick={toggleMobileMenu}
+          className="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 rounded-md"
+        >
+          {isMobileMenuOpen ? <HiOutlineX className="h-6 w-6" /> : <HiOutlineMenu className="h-6 w-6" />}
+        </button>
+      </div>
+
+      {/* モバイルサイドメニュー */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 flex z-40">
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={toggleMobileMenu}></div>
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
+            <div className="absolute top-0 right-0 -mr-12 pt-2">
+              <button
+                className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                onClick={toggleMobileMenu}
+              >
+                <span className="sr-only">Close sidebar</span>
+                <HiOutlineX className="h-6 w-6 text-white" />
+              </button>
+            </div>
+
+            <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+              <div className="flex-shrink-0 flex items-center px-4">
+                <h1 className="text-xl font-bold text-blue-600">LINEBUZZ</h1>
+                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">管理</span>
+              </div>
+              <nav className="mt-5 px-2 space-y-1">
+                {navigation.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`${
+                        isActive
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-gray-700 hover:bg-gray-50"
+                      } group flex items-center px-2 py-2 text-sm font-medium rounded-md`}
+                      onClick={toggleMobileMenu}
+                    >
+                      <item.icon
+                        className={`${
+                          isActive ? "text-blue-500" : "text-gray-500 group-hover:text-gray-700"
+                        } mr-3 flex-shrink-0 h-5 w-5`}
+                      />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+            <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+              <div className="flex-shrink-0 w-full group block">
+                <div className="flex items-center">
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-gray-700">{session?.user?.name || "管理者"}</p>
+                    <button
+                      onClick={() => signOut({ callbackUrl: "/admin/login" })}
+                      className="flex items-center text-xs font-medium text-gray-500 hover:text-gray-700 mt-1"
+                    >
+                      <HiOutlineLogout className="mr-1 h-4 w-4" />
+                      ログアウト
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* サイドナビゲーション（デスクトップ） */}
+      <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
+        <div className="flex flex-col flex-grow border-r border-gray-200 bg-white pt-5 pb-4 overflow-y-auto">
+          <div className="flex items-center flex-shrink-0 px-4 mb-5">
+            <h1 className="text-xl font-bold text-blue-600">LINEBUZZ</h1>
+            <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">管理</span>
+          </div>
+          <div className="mt-5 flex-grow flex flex-col">
+            <nav className="flex-1 px-2 space-y-1">
+              {navigation.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`${
+                      isActive
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-700 hover:bg-gray-50"
+                    } group flex items-center px-2 py-2 text-sm font-medium rounded-md`}
+                  >
+                    <item.icon
+                      className={`${
+                        isActive ? "text-blue-500" : "text-gray-500 group-hover:text-gray-700"
+                      } mr-3 flex-shrink-0 h-5 w-5`}
+                    />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+          <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+            <div className="flex-shrink-0 w-full group block">
+              <div className="flex items-center">
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-700">{session?.user?.name || "管理者"}</p>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/admin/login" })}
+                    className="flex items-center text-xs font-medium text-gray-500 hover:text-gray-700 mt-1"
+                  >
+                    <HiOutlineLogout className="mr-1 h-4 w-4" />
+                    ログアウト
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* メインコンテンツ */}
+      <div className="lg:pl-64 flex flex-col flex-1">
+        <main className="flex-1 pb-10">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

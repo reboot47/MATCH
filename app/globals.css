@@ -3,19 +3,123 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+  --primary-rgb: 102, 205, 170; /* #66cdaa */
+  --secondary-rgb: 144, 238, 144; /* #90ee90 */
+  --gray-rgb: 128, 128, 128; /* #808080 */
+  --error-rgb: 255, 182, 193; /* #ffb6c1 */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-feature-settings: "palt";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* モバイル最適化スクロールバー */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* LINEBUZZ風のアニメーションとスタイル */
+@layer components {
+  .ios-btn {
+    @apply active:scale-95 transition-transform duration-200 ease-out;
+  }
+  
+  .ios-input {
+    @apply bg-gray-100 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-300;
+  }
+  
+  .ios-card {
+    @apply bg-white rounded-2xl shadow-sm overflow-hidden;
+  }
+  
+  .ios-modal {
+    @apply bg-white rounded-2xl shadow-xl mx-4 max-w-lg w-full;
+  }
+
+  /* LINEBUZZ固有のスタイル */
+  .linebuzz-btn {
+    @apply bg-primary-300 hover:bg-primary-400 text-white py-2 px-4 rounded-full transition-colors duration-200;
+  }
+
+  .linebuzz-btn-secondary {
+    @apply bg-secondary-300 hover:bg-secondary-400 text-white py-2 px-4 rounded-full transition-colors duration-200;
+  }
+
+  .linebuzz-link {
+    @apply text-primary-300 hover:text-primary-400 transition-colors duration-200;
+  }
+
+  .linebuzz-error {
+    @apply text-error-300 bg-error-50 p-2 rounded-md;
+  }
+
+  .linebuzz-success {
+    @apply text-secondary-700 bg-secondary-50 p-2 rounded-md;
+  }
+
+  .profile-img {
+    @apply rounded-full border-2 border-primary-300 object-cover;
+  }
+}
+
+/* ページトランジション */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* スワイプナビゲーションのスタイル */
+.swipe-container {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.swipe-back-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  background: linear-gradient(90deg, rgba(102, 205, 170, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.swipe-back-active .swipe-back-indicator {
+  opacity: 1;
 }

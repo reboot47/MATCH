@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="60px" viewBox="0 0 200 60" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>LINEBUZZ Logo</title>
+    <defs>
+        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#66CDAA;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#4AAEA9;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+    <g fill="none" fill-rule="evenodd">
+        <!-- Chat Bubble Icon -->
+        <g transform="translate(5, 10)">
+            <path d="M0,5 C0,2.239 2.239,0 5,0 L35,0 C37.761,0 40,2.239 40,5 L40,25 C40,27.761 37.761,30 35,30 L15,30 L5,40 L5,30 C2.239,30 0,27.761 0,25 L0,5 Z" fill="url(#logoGradient)" />
+            
+            <!-- Buzz Lines -->
+            <line x1="12" y1="10" x2="28" y2="10" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+            <line x1="12" y1="15" x2="28" y2="15" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+            <line x1="12" y1="20" x2="28" y2="20" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+        </g>
+        
+        <!-- Text "LINEBUZZ" -->
+        <g transform="translate(50, 20)" fill="#333333" font-family="Arial, sans-serif" font-weight="bold">
+            <text x="0" y="18" font-size="24">LINE<tspan fill="#66CDAA">BUZZ</tspan></text>
+        </g>
+    </g>
+</svg>

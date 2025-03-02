@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
+  <rect width="400" height="600" fill="#90ee90" opacity="0.3"/>
+  <circle cx="200" cy="150" r="70" fill="#90ee90"/>
+  <path d="M200,240 C133.333,240 80,293.333 80,360 L320,360 C320,293.333 266.667,240 200,240 Z" fill="#90ee90"/>
+  <text x="200" y="450" text-anchor="middle" font-family="Arial" font-size="24" fill="#444">佐藤 健太</text>
+  <text x="200" y="480" text-anchor="middle" font-family="Arial" font-size="18" fill="#555">横浜・32歳</text>
+</svg>

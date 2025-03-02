@@ -1,0 +1,181 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザーモデル
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  hashedPassword String?
+  bio           String?
+  age           Int?
+  gender        String?
+  location      String?
+  occupation    String?
+  interests     String[]
+  photos        Photo[]
+  
+  // マッチング関連
+  likesSent     Like[]    @relation("LikeFromUser")
+  likesReceived Like[]    @relation("LikeToUser")
+  matches       Match[]   @relation("UserMatches")
+  
+  // 認証関連
+  accounts      Account[]
+  sessions      Session[]
+  
+  // メッセージ関連
+  messagesSent     Message[] @relation("MessageFromUser")
+  messagesReceived Message[] @relation("MessageToUser")
+  
+  // ライブ配信関連
+  broadcasts    Broadcast[] @relation("UserBroadcasts")
+  viewers       Viewer[]    @relation("UserViewers")
+  
+  // 通知関連
+  notifications Notification[] @relation("UserNotifications")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 認証アカウントモデル
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// セッションモデル
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 認証トークンモデル
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// 写真モデル
+model Photo {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  isProfile Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// いいねモデル
+model Like {
+  id        String   @id @default(cuid())
+  fromId    String
+  toId      String
+  isMatched Boolean  @default(false)
+  fromUser  User     @relation("LikeFromUser", fields: [fromId], references: [id], onDelete: Cascade)
+  toUser    User     @relation("LikeToUser", fields: [toId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([fromId, toId])
+}
+
+// マッチモデル
+model Match {
+  id        String    @id @default(cuid())
+  users     User[]    @relation("UserMatches")
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// メッセージモデル
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  imageUrl  String?
+  read      Boolean  @default(false)
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation("MessageFromUser", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("MessageToUser", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ライブ配信モデル
+model Broadcast {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  streamKey   String    @unique
+  streamUrl   String
+  isActive    Boolean   @default(false)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  hostId      String
+  host        User      @relation("UserBroadcasts", fields: [hostId], references: [id], onDelete: Cascade)
+  viewers     Viewer[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 視聴者モデル
+model Viewer {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation("UserViewers", fields: [userId], references: [id], onDelete: Cascade)
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
+  
+  @@unique([userId, broadcastId])
+}
+
+// 通知モデル
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // e.g., "like", "match", "message", "broadcast"
+  content   String
+  read      Boolean  @default(false)
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
