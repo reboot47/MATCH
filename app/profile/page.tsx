@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 
-// 新しいコンポーネントのインポート
+// 新しいコンポーネントとフックのインポート
 import ProfileNavigation from '@/app/components/profile/ProfileNavigation';
 import ProfileCompletionCard from '@/app/components/profile/ProfileCompletionCard';
 import MediaGallery from '@/app/components/profile/MediaGallery';
@@ -15,6 +15,7 @@ import PersonalityTest from '@/app/components/profile/PersonalityTest';
 import ProfileDetails from '@/app/components/profile/ProfileDetails';
 import MatchingPreferences from '@/app/components/profile/MatchingPreferences';
 import VerificationCenter from '@/app/components/profile/VerificationCenter';
+import { useMediaItems } from '@/app/hooks/useMediaItems';
 
 // モックデータ型定義
 interface UserWithPhotos {
@@ -59,9 +60,12 @@ export const dynamic = 'force-dynamic';
 export default function ProfilePage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const [activeSection, setActiveSection] = useState('profile');
+  const [userData, setUserData] = useState<UserWithPhotos | null>(null);
   const [user, setUser] = useState<UserWithPhotos | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
+  const { mediaItems, loading: mediaLoading, updateMediaItems, isDemo } = useMediaItems();
 
   // ユーザー情報とプロフィール写真の取得
   useEffect(() => {
@@ -114,13 +118,13 @@ export default function ProfilePage() {
               },
               {
                 id: "p2",
-                url: "https://images.unsplash.com/photo-1527631120902-378417754324",
+                url: "https://images.unsplash.com/photo-1527631120902-378417754324?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
                 type: "image",
                 caption: "富士山登山にて"
               },
               {
                 id: "p3",
-                url: "https://images.unsplash.com/photo-1516216628859-9c66c49baba8",
+                url: "https://images.unsplash.com/photo-1516216628859-9c66c49baba8?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
                 type: "image",
                 caption: "愛犬のポチと"
               },
@@ -130,6 +134,13 @@ export default function ProfilePage() {
                 type: "video",
                 caption: "趣味の紹介動画",
                 thumbnail: "https://peach.blender.org/wp-content/uploads/bbb-splash.png"
+              },
+              {
+                id: "v2",
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                type: "video",
+                caption: "動画のサムネイル",
+                thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Elephants_Dream_screenshot.jpg/1280px-Elephants_Dream_screenshot.jpg"
               }
             ],
             emailVerified: new Date(),
@@ -200,14 +211,18 @@ export default function ProfilePage() {
     if (!user) return;
     
     try {
-      // ここでは簡易的にステート更新のみ行います
-      // 実際のAPI連携時はここでAPIを呼び出します
-      setUser({
-        ...user,
-        mediaItems
-      });
-      toast.success('メディアを更新しました');
-      return true;
+      // 実際のAPI連携
+      const success = await updateMediaItems(mediaItems);
+      
+      if (success) {
+        // ユーザー情報も更新
+        setUser({
+          ...user,
+          mediaItems
+        });
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('メディア更新エラー:', error);
       toast.error('メディアの更新中にエラーが発生しました');
@@ -238,7 +253,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-pink-500 to-orange-400">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-[#66cdaa] to-[#90ee90]">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white"></div>
           <p className="mt-4 text-white font-medium">Loading...</p>
@@ -270,10 +285,14 @@ export default function ProfilePage() {
       case 'media':
         return (
           <MediaGallery 
-            mediaItems={user.mediaItems} 
+            mediaItems={mediaItems} 
             editable={true}
             onUpdate={handleUpdateMedia}
             maxMediaCount={9}
+            loading={mediaLoading}
+            userName={user.name}
+            userImage={user.image}
+            isDemo={isDemo}
           />
         );
 
@@ -315,9 +334,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-b from-[#e6f7f2] to-[#f0faf0]">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-pink-500 to-orange-400 text-white py-4 px-4 shadow-md">
+      <div className="bg-gradient-to-r from-[#66cdaa] to-[#90ee90] text-white py-4 px-4 shadow-md">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center">
             <img 

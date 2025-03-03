@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { fetchAdminReports, updateAdminReport, deleteAdminReport, updateAdminReportMemo, AdminReportWithUsers } from '@/lib/api/admin';
+import { fetchAdminReports, updateAdminReport, deleteAdminReport, updateAdminReportMemo, AdminReportWithUsers } from '../../../lib/api/admin';
 import { toast } from 'react-hot-toast';
-import { withAdminAuth } from '@/lib/auth/requireAdmin';
-import ReportDetailModal from '@/components/admin/ReportDetailModal';
+import { withAdminAuth } from '../../../components/auth/withAdminAuth';
+import ReportDetailModal from '../../../components/admin/ReportDetailModal';
 
 interface Report {
   id: number;

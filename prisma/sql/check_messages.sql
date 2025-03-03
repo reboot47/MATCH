@@ -1,0 +1,1 @@
+SELECT * FROM "Message" LIMIT 10;

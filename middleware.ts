@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth";
 
 // 管理者ユーザーのIDのリスト（実際の運用では環境変数や管理者フラグを使用）
 const ADMIN_USER_IDS = ["1", "4"];
@@ -27,20 +27,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  const secret = process.env.NEXTAUTH_SECRET;
-  const token = await getToken({ req: request, secret });
-  console.log("トークン:", token);
+  const session = await auth();
+  console.log("セッション:", session);
   
   // ログインしていない場合は、ログインページへリダイレクト
-  if (!token) {
+  if (!session || !session.user) {
     console.log("未認証: 管理者ログインページへリダイレクト");
     return NextResponse.redirect(new URL("/admin-login", request.url));
   }
   
   // 管理者権限を検証
-  const userId = token.sub;
-  const userRole = token.role;
-  console.log("認証情報検証:", { userId, userRole, token });
+  const userId = session.user.id;
+  const userRole = session.user.role;
+  console.log("認証情報検証:", { userId, userRole });
   
   // 管理者IDリストに含まれているか、ロールがADMIN/adminならアクセス許可
   if (ADMIN_USER_IDS.includes(userId as string) || 

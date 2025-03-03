@@ -43,7 +43,7 @@ const ProfileSection = ({ title, icon, fields, isEditing, onFieldChange }: Profi
   return (
     <div className="border-b pb-5">
       <div className="flex items-center gap-2 mb-4">
-        <div className="text-pink-500">{icon}</div>
+        <div className="text-[#66cdaa]">{icon}</div>
         <h3 className="font-semibold text-gray-800">{title}</h3>
       </div>
       
@@ -58,13 +58,13 @@ const ProfileSection = ({ title, icon, fields, isEditing, onFieldChange }: Profi
                   type={field.type}
                   value={field.value || ''}
                   onChange={(e) => handleChange(e, field.name)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#66cdaa] focus:border-[#66cdaa]"
                 />
               ) : field.type === 'select' ? (
                 <select
                   value={field.value || ''}
                   onChange={(e) => handleChange(e, field.name)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#66cdaa] focus:border-[#66cdaa]"
                 >
                   <option value="">選択してください</option>
                   {field.options?.map(option => (
@@ -78,7 +78,7 @@ const ProfileSection = ({ title, icon, fields, isEditing, onFieldChange }: Profi
                   value={field.value || ''}
                   onChange={(e) => handleChange(e, field.name)}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#66cdaa] focus:border-[#66cdaa]"
                 />
               )
             ) : (
@@ -138,7 +138,7 @@ export default function ProfileDetails({ user, editable, onSave, showInterestsOn
             <button 
               onClick={() => isEditing ? handleSave() : setIsEditing(true)}
               className={`px-4 py-2 rounded-md ${
-                isEditing ? 'bg-pink-500 text-white' : 'border border-pink-500 text-pink-500'
+                isEditing ? 'bg-[#66cdaa] text-white' : 'border border-[#66cdaa] text-[#66cdaa]'
               } hover:opacity-90 transition-opacity`}
             >
               {isEditing ? '保存' : '編集'}
@@ -177,7 +177,7 @@ export default function ProfileDetails({ user, editable, onSave, showInterestsOn
           <button 
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
             className={`px-4 py-2 rounded-md ${
-              isEditing ? 'bg-pink-500 text-white' : 'border border-pink-500 text-pink-500'
+              isEditing ? 'bg-[#66cdaa] text-white' : 'border border-[#66cdaa] text-[#66cdaa]'
             } hover:opacity-90 transition-opacity`}
           >
             {isEditing ? '保存' : '編集'}

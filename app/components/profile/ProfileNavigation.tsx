@@ -24,17 +24,17 @@ interface ProfileNavigationProps {
 export default function ProfileNavigation({ activeTab, onTabChange, user, tabs }: ProfileNavigationProps) {
   // アイコンマッピング
   const iconMap: { [key: string]: JSX.Element } = {
-    'profile': <FaUser className="text-pink-500" />,
-    'media': <FaPhotoVideo className="text-pink-500" />,
-    'interests': <FaHeart className="text-pink-500" />,
-    'personality': <FaChartLine className="text-pink-500" />,
-    'matching': <FaClipboardCheck className="text-pink-500" />,
-    'verification': <FaUserCheck className="text-pink-500" />,
+    'profile': <FaUser className="text-[#66cdaa]" />,
+    'media': <FaPhotoVideo className="text-[#66cdaa]" />,
+    'interests': <FaHeart className="text-[#66cdaa]" />,
+    'personality': <FaChartLine className="text-[#66cdaa]" />,
+    'matching': <FaClipboardCheck className="text-[#66cdaa]" />,
+    'verification': <FaUserCheck className="text-[#66cdaa]" />,
   };
 
   const linkItems = [
-    { href: '/profile/settings', label: '設定', icon: <FaCog className="text-pink-500" /> },
-    { href: '/profile/matches', label: 'マッチング履歴', icon: <FaHistory className="text-pink-500" /> },
+    { href: '/profile/settings', label: '設定', icon: <FaCog className="text-[#66cdaa]" /> },
+    { href: '/profile/matches', label: 'マッチング履歴', icon: <FaHistory className="text-[#66cdaa]" /> },
   ];
 
   return (
@@ -47,12 +47,12 @@ export default function ProfileNavigation({ activeTab, onTabChange, user, tabs }
             onClick={() => onTabChange(item.id)}
             className={`flex flex-col items-center justify-center px-4 py-3 whitespace-nowrap transition-colors
               ${activeTab === item.id 
-                ? 'text-pink-600 border-b-2 border-pink-500 font-medium' 
-                : 'text-gray-500 hover:text-pink-400'}
+                ? 'text-[#66cdaa] border-b-2 border-[#90ee90] font-medium' 
+                : 'text-[#808080] hover:text-[#66cdaa]'}
             `}
           >
             <div className="mb-1">
-              {iconMap[item.id] || <FaUser className="text-pink-500" />}
+              {iconMap[item.id] || <FaUser className="text-[#66cdaa]" />}
             </div>
             <span className="text-xs">{item.label}</span>
           </button>
@@ -60,12 +60,12 @@ export default function ProfileNavigation({ activeTab, onTabChange, user, tabs }
       </div>
 
       {/* リンク項目 - 小さいセカンダリーメニュー */}
-      <div className="flex justify-center border-t border-gray-100 pt-2 mt-2">
+      <div className="flex justify-center border-t border-[#808080] pt-2 mt-2">
         {linkItems.map(item => (
           <Link
             key={item.href}
             href={item.href}
-            className="flex items-center px-3 py-1 mx-1 text-xs text-gray-500 hover:text-pink-500"
+            className="flex items-center px-3 py-1 mx-1 text-xs text-[#808080] hover:text-[#66cdaa]"
           >
             <span className="mr-1">{item.icon}</span> 
             {item.label}

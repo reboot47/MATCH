@@ -8,9 +8,9 @@ interface ProfileCompletionCardProps {
 export default function ProfileCompletionCard({ percentage }: ProfileCompletionCardProps) {
   // 完成度に基づく色とメッセージ
   const getColorClass = () => {
-    if (percentage < 30) return 'text-red-500 bg-red-50';
-    if (percentage < 70) return 'text-amber-500 bg-amber-50';
-    return 'text-green-500 bg-green-50';
+    if (percentage < 30) return 'text-[#808080] bg-[#ffffff]';
+    if (percentage < 70) return 'text-[#90ee90] bg-[#ffffff]';
+    return 'text-[#66cdaa] bg-[#ffffff]';
   };
 
   const getMessage = () => {
@@ -29,7 +29,7 @@ export default function ProfileCompletionCard({ percentage }: ProfileCompletionC
       
       <div className="w-full bg-white rounded-full h-2.5 mb-3">
         <div 
-          className={`h-2.5 rounded-full ${percentage < 30 ? 'bg-red-500' : percentage < 70 ? 'bg-amber-500' : 'bg-green-500'}`} 
+          className={`h-2.5 rounded-full ${percentage < 30 ? 'bg-[#808080]' : percentage < 70 ? 'bg-[#90ee90]' : 'bg-[#66cdaa]'}`} 
           style={{ width: `${percentage}%` }}
         ></div>
       </div>

@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import NotificationsPanel from './notifications/NotificationsPanel';
 import { signOut } from 'next-auth/react';
+import { toast } from 'react-hot-toast';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -13,6 +15,7 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const navItems = [
@@ -124,6 +127,27 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: '/admin/login',
+        redirect: false 
+      });
+      
+      // クライアント側でリダイレクト処理
+      router.push('/admin/login');
+      toast.success('ログアウトしました');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      
+      // エラーが発生しても強制的にログアウト処理を行う
+      localStorage.removeItem('next-auth.session-token');
+      sessionStorage.clear();
+      router.push('/admin/login');
+      toast.success('ログアウトしました');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -217,7 +241,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               <div className="flex items-center space-x-4">
                 <NotificationsPanel />
                 <button
-                  onClick={() => signOut({ callbackUrl: '/admin/login' })}
+                  onClick={handleSignOut}
                   className="text-sm px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
                 >
                   ログアウト

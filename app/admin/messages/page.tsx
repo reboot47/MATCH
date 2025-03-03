@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { fetchAdminMessages, updateAdminMessage, deleteAdminMessage, updateAdminMessageMemo } from '@/lib/api/admin';
+import { fetchAdminMessages, updateAdminMessage, deleteAdminMessage, updateAdminMessageMemo } from '../../../lib/api/admin';
 import styles from './messages.module.css';
-import { withAdminAuth } from '@/lib/auth/requireAdmin';
-import MessageDetailModal from '@/components/admin/MessageDetailModal';
+import { withAdminAuth } from '../../../components/auth/withAdminAuth';
+import MessageDetailModal from '../../../components/admin/MessageDetailModal';
 
 // インターフェース定義
 interface Message {

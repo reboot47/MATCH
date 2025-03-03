@@ -1,64 +1,63 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
-import AuthProvider from "@/providers/AuthProvider";
-import { UserProvider } from "@/components/UserContext";
+import Providers from "@/providers";
+import { Toaster } from 'react-hot-toast';
 
 // 日英両対応フォントの設定
 const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
 });
 
 const notoSans = Noto_Sans_JP({
-  weight: ["400", "500", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-noto-sans",
+  weight: ['400', '500', '700'],
+  subsets: ['latin'],
+  variable: '--font-noto-sans',
+  display: 'swap',
 });
 
 const notoSerif = Noto_Serif_JP({
-  weight: ["400", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-noto-serif",
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  variable: '--font-noto-serif',
+  display: 'swap',
 });
 
+// viewportの設定を別のエクスポートに移動
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+  ],
+};
+
 export const metadata: Metadata = {
-  title: "LINEBUZZ - 最高のマッチングアプリ",
-  description: "洗練されたデザインとUXを持つ最高のマッチングアプリです。",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  themeColor: "#ffffff",
-  appleWebApp: {
-    title: "LINEBUZZ",
-    statusBarStyle: "black-translucent",
-    startupImage: [
-      {
-        url: "/splash/apple-splash-2048-2732.png",
-        media: "(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)",
-      },
-      {
-        url: "/splash/apple-splash-1668-2388.png",
-        media: "(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)",
-      },
-      {
-        url: "/splash/apple-splash-1536-2048.png",
-        media: "(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)",
-      },
-      {
-        url: "/splash/apple-splash-1125-2436.png",
-        media: "(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)",
-      },
-      {
-        url: "/splash/apple-splash-1242-2688.png",
-        media: "(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)",
-      },
-      {
-        url: "/splash/apple-splash-828-1792.png",
-        media: "(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)",
-      },
-    ],
+  title: {
+    default: "LineBuzz - マッチングアプリ",
+    template: "%s | LineBuzz",
+  },
+  description: "LineBuzz - 新しいマッチングの形を提供するアプリケーション",
+  keywords: ["マッチング", "デート", "出会い", "パートナー", "恋愛", "アプリ"],
+  icons: {
+    icon: ["/favicon.ico"],
+    apple: ["/apple-touch-icon.png"],
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    type: "website",
+    title: "LineBuzz - マッチングアプリ",
+    description: "LineBuzz - 新しいマッチングの形を提供するアプリケーション",
+    siteName: "LineBuzz",
+    locale: "ja_JP",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LineBuzz - マッチングアプリ",
+    description: "LineBuzz - 新しいマッチングの形を提供するアプリケーション",
   },
 };
 
@@ -70,13 +69,32 @@ export default function RootLayout({
   return (
     <html lang="ja" className={`${inter.variable} ${notoSans.variable} ${notoSerif.variable}`}>
       <body className="font-sans bg-white text-gray-900">
-        <AuthProvider>
-          <UserProvider>
-            <div className="mx-auto max-w-7xl">
-              {children}
-            </div>
-          </UserProvider>
-        </AuthProvider>
+        <Providers>
+          <div className="mx-auto max-w-7xl">
+            {children}
+          </div>
+          <Toaster position="top-right" toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#10B981',
+                secondary: 'white',
+              }
+            },
+            error: {
+              duration: 5000,
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: 'white',
+              }
+            }
+          }} />
+        </Providers>
       </body>
     </html>
   );

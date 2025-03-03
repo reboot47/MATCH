@@ -20,7 +20,7 @@ model User {
   location         String?
   occupation       String?
   interests        String[]
-  // role             String         @default("USER") // データベースにカラム不在のため一時的にコメントアウト
+  role             String         @default("USER")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   accounts         Account[]
@@ -29,11 +29,14 @@ model User {
   likesReceived    Like[]         @relation("LikeToUser")
   messagesReceived Message[]      @relation("MessageToUser")
   messagesSent     Message[]      @relation("MessageFromUser")
-  notifications    Notification[] @relation("UserNotifications")
+  notifications    Notification[] 
   photos           Photo[]
+  mediaItems       MediaItem[]    @relation("UserMedia")
   sessions         Session[]
   viewers          Viewer[]       @relation("UserViewers")
   matches          Match[]        @relation("UserMatches")
+  reportsSent      Report[]       @relation("ReportFromUser")
+  reportsReceived  Report[]       @relation("ReportToUser")
 }
 
 model Account {
@@ -79,6 +82,21 @@ model Photo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MediaItem {
+  id        String   @id @default(cuid())
+  url       String
+  type      String   // 'image' または 'video'
+  publicId  String   // Cloudinaryの公開ID
+  thumbnail String?  // 動画のサムネイル
+  caption   String?
+  isPrimary Boolean  @default(false)
+  sortOrder Int      @default(0)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation("UserMedia", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Like {
@@ -153,7 +171,98 @@ model Notification {
   type      String
   content   String
   read      Boolean  @default(false)
-  userId    String
   createdAt DateTime @default(now())
-  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  type         String   // harassment, fake_profile, inappropriate_behavior, etc.
+  description  String   // 報告の詳細説明
+  status       String   @default("pending") // pending, investigating, resolved
+  severity     String   @default("medium") // low, medium, high
+  resolution   String?  // 解決策（警告、アカウント停止、無視など）
+  evidenceUrls String[] // 証拠画像や証拠となるメッセージのID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 報告者
+  reporterId String
+  reporter   User   @relation("ReportFromUser", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  // 報告対象者
+  reportedId String
+  reported   User   @relation("ReportToUser", fields: [reportedId], references: [id], onDelete: Cascade)
+  
+  // 関連付けられたコンテンツ
+  contentId   String?
+  contentType String? // profile, photo, message, livestream, etc.
+  
+  // モデレーション処理
+  moderatorId       String?
+  moderationComment String?
+  moderatedAt       DateTime?
+}
+
+// コンテンツモデレーション記録
+model ContentModeration {
+  id               String   @id @default(cuid())
+  contentType      String   // profile, photo, message, post, comment, etc.
+  contentId        String   // 対象コンテンツのID
+  userId           String   // コンテンツ所有者
+  moderatorId      String?  // モデレーション実施者
+  status           String   @default("pending") // pending, approved, rejected
+  reason           String?  // モデレーション理由
+  moderationNotes  String?  // 内部向けメモ
+  violationLevel   String?  // minor, moderate, severe
+  actionTaken      String?  // warning, content_removal, temporary_ban, permanent_ban
+  detectionMethod  String   @default("user_report") // user_report, automated, routine_check
+  createdAt        DateTime @default(now())
+  moderatedAt      DateTime?
+  updatedAt        DateTime @updatedAt
+}
+
+// モデレーションポリシー
+model ModerationPolicy {
+  id             String   @id @default(cuid())
+  name           String
+  description    String
+  contentType    String   // profile, photo, message, etc.
+  rules          String[] // ポリシーのルール
+  severity       String   // low, medium, high
+  actionRequired String   // warn, remove, ban
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// 自動応答テンプレート
+model AutoResponseTemplate {
+  id        String            @id @default(cuid())
+  name      String
+  message   String
+  category  String
+  isActive  Boolean           @default(true)
+  useCount  Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  rules     AutoResponseRule[] @relation("TemplateToRule")
+}
+
+// 自動応答ルール
+model AutoResponseRule {
+  id               String                @id @default(cuid())
+  name             String
+  conditionType    String
+  conditionValue   String
+  conditionOperator String?
+  delay            Int                   @default(0)
+  probability      Int                   @default(100)
+  isActive         Boolean               @default(true)
+  accountIds       String[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  templates        AutoResponseTemplate[] @relation("TemplateToRule")
 }

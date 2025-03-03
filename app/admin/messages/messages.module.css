@@ -143,6 +143,12 @@
   color: #b91c1c;
 }
 
+.blocked-badge {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  font-weight: bold;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.25rem;

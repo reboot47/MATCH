@@ -1,35 +1,28 @@
 "use client";
 
-import AdminLayout from '@/components/admin/AdminLayout';
 import React from 'react';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
-import { usePathname } from 'next/navigation';
+import { Toaster } from 'react-hot-toast';
+import AdminSidebar from '@/app/components/admin/AdminSidebar';
 
-export default function AdminDashboardLayout({
+export default function AdminLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const { data: session, status } = useSession();
-  const pathname = usePathname();
-  
-  // 管理者ログインページの場合はリダイレクトしない
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
-  
-  // 認証チェック - 未認証ユーザーをログインページにリダイレクト
-  if (status === 'unauthenticated') {
-    redirect('/admin/login'); // 管理者ログインページにリダイレクト
-  }
-  
-  // ロールチェック - 管理者でないユーザーをホームページにリダイレクト
-  if (status === 'authenticated' && 
-      session?.user?.role !== 'admin' && 
-      session?.user?.role !== 'operator') {
-    redirect('/');
-  }
-
-  return <AdminLayout>{children}</AdminLayout>;
+  return (
+    <div className="h-screen flex overflow-hidden bg-gray-100">
+      {/* サイドバー */}
+      <AdminSidebar />
+      
+      {/* メインコンテンツ */}
+      <div className="flex-1 overflow-auto">
+        <main className="relative z-0 flex-1 overflow-y-auto focus:outline-none">
+          {children}
+        </main>
+      </div>
+      
+      {/* トースト通知 */}
+      <Toaster position="top-right" />
+    </div>
+  );
 }

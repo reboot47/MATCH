@@ -54,7 +54,7 @@ export default function BottomNavigation() {
 
   return (
     <motion.div 
-      className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 shadow-lg rounded-t-xl z-50"
+      className="fixed bottom-0 left-0 right-0 bg-white shadow-lg rounded-t-xl z-50"
       initial={{ y: 100 }}
       animate={{ y: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
@@ -68,7 +68,7 @@ export default function BottomNavigation() {
             <motion.button
               key={item.path}
               className={`flex flex-col items-center justify-center w-full h-full ios-btn ${
-                isActive ? "text-primary-600 dark:text-primary-400" : "text-gray-500 dark:text-gray-400"
+                isActive ? "text-primary-500" : "text-gray-600"
               }`}
               whileTap={{ scale: 0.9 }}
               onClick={() => router.push(item.path)}
@@ -76,13 +76,13 @@ export default function BottomNavigation() {
               <div className="relative">
                 <Icon className="h-6 w-6" />
                 {item.path === "/messages" && (
-                  <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary-500 rounded-full"></span>
+                  <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary-400 rounded-full"></span>
                 )}
               </div>
               <span className="text-xs mt-1">{item.label}</span>
               {isActive && (
                 <motion.div
-                  className="absolute -bottom-0 h-0.5 w-6 bg-primary-600 dark:bg-primary-400 rounded-full"
+                  className="absolute -bottom-0 h-0.5 w-6 bg-primary-500 rounded-full"
                   layoutId="bottomNav"
                   transition={{
                     type: "spring",
@@ -95,7 +95,7 @@ export default function BottomNavigation() {
           );
         })}
       </div>
-      <div className="h-safe-bottom bg-white dark:bg-gray-900" />
+      <div className="h-safe-bottom bg-white" />
     </motion.div>
   );
 }

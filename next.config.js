@@ -7,6 +7,16 @@ const nextConfig = {
       use: 'null-loader',
     });
     
+    // node_modulesのtranspile設定
+    config.module.rules.push({
+      test: /\.js$/,
+      include: [
+        /node_modules\/@radix-ui/,
+        /node_modules\/class-variance-authority/
+      ],
+      use: { loader: 'babel-loader' }
+    });
+    
     return config;
   },
   images: {
@@ -17,15 +27,18 @@ const nextConfig = {
       'cloudinary.com',
       'res.cloudinary.com',
       'picsum.photos',
-      'api.dicebear.com'
+      'api.dicebear.com',
+      'commondatastorage.googleapis.com',
+      'peach.blender.org'
     ],
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',
         hostname: '**',
-      },
+      }
     ],
+    unoptimized: true
   },
   eslint: {
     // 本番ビルド時にESLintエラーを無視する
@@ -43,6 +56,18 @@ const nextConfig = {
   },
   // 静的エクスポートを無効にする
   output: 'standalone',
+  // パスのエイリアスを設定
+  compiler: {
+    // Enables the JSX in .js files.
+    jsx: true,
+  },
+  // パスのエイリアスを設定
+  alias: {
+    '@components': './components',
+    '@public': './public',
+    '@styles': './styles',
+    '@utils': './utils',
+  },
 };
 
 module.exports = nextConfig;

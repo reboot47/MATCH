@@ -54,17 +54,43 @@ const SettingsIcon = ({ className }: { className: string }) => (
   </svg>
 );
 
+const MessageIcon = ({ className }: { className: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+  </svg>
+);
+
+const FakeAccountIcon = ({ className }: { className: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    <line x1="5" y1="5" x2="19" y2="19" strokeWidth={2} />
+  </svg>
+);
+
+const EventIcon = ({ className }: { className: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
+const MarketingIcon = ({ className }: { className: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+  </svg>
+);
+
+const BillingIcon = ({ className }: { className: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+  </svg>
+);
+
 const navigation: NavItem[] = [
   { name: 'ダッシュボード', href: '/admin', icon: DashboardIcon },
   { 
     name: 'ユーザー管理', 
     href: '/admin/users', 
-    icon: UsersIcon,
-    subItems: [
-      { name: 'ユーザー一覧', href: '/admin/users' },
-      { name: '承認リクエスト', href: '/admin/users/approvals' },
-      { name: '禁止ユーザー', href: '/admin/users/banned' }
-    ]
+    icon: UsersIcon
   },
   { 
     name: 'モデレーション', 
@@ -79,10 +105,21 @@ const navigation: NavItem[] = [
   { 
     name: '報告管理', 
     href: '/admin/reports', 
-    icon: ReportsIcon,
+    icon: ReportsIcon
+  },
+  {
+    name: 'メッセージ管理',
+    href: '/admin/messages',
+    icon: MessageIcon
+  },
+  {
+    name: 'サクラアカウント管理',
+    href: '/admin/fake-accounts',
+    icon: FakeAccountIcon,
     subItems: [
-      { name: '報告一覧', href: '/admin/reports' },
-      { name: '解決済み報告', href: '/admin/reports/resolved' }
+      { name: 'サクラアカウント一覧', href: '/admin/fake-accounts' },
+      { name: '自動応答設定', href: '/admin/fake-accounts/auto-responses' },
+      { name: '活動スケジュール', href: '/admin/fake-accounts/schedules' }
     ]
   },
   { 
@@ -93,6 +130,26 @@ const navigation: NavItem[] = [
       { name: 'ユーザー統計', href: '/admin/analytics/users' },
       { name: '利用統計', href: '/admin/analytics/usage' },
       { name: '売上分析', href: '/admin/analytics/revenue' }
+    ]
+  },
+  {
+    name: 'イベント管理',
+    href: '/admin/events',
+    icon: EventIcon
+  },
+  {
+    name: 'マーケティング',
+    href: '/admin/marketing',
+    icon: MarketingIcon
+  },
+  {
+    name: '課金管理',
+    href: '/admin/billing',
+    icon: BillingIcon,
+    subItems: [
+      { name: 'ポイント設定', href: '/admin/billing/points' },
+      { name: '課金プラン', href: '/admin/billing/plans' },
+      { name: '取引履歴', href: '/admin/billing/transactions' }
     ]
   },
   { name: 'システム設定', href: '/admin/settings', icon: SettingsIcon },
@@ -113,19 +170,19 @@ const AdminSidebar: React.FC = () => {
   };
   
   return (
-    <div className="h-full flex flex-col bg-gray-800 text-white shadow-lg w-64">
+    <div className="h-full flex flex-col bg-[#66cdaa] text-white shadow-lg w-64 border-r border-gray-200">
       {/* ヘッダー */}
-      <div className="p-4 border-b border-gray-700 flex items-center justify-center">
+      <div className="p-4 border-b border-white/20 flex items-center justify-center">
         <div className="flex items-center">
           {/* ロゴ */}
           <div className="mr-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#66cdaa] font-bold text-xl">
               LB
             </div>
           </div>
           <div>
-            <div className="text-lg font-bold">LineBuzz</div>
-            <div className="text-xs text-gray-400">管理者パネル</div>
+            <div className="text-lg font-bold text-white">LineBuzz</div>
+            <div className="text-xs text-white/80">管理者パネル</div>
           </div>
         </div>
       </div>
@@ -141,10 +198,10 @@ const AdminSidebar: React.FC = () => {
                   <button 
                     onClick={() => toggleExpand(item.name)}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md group ${
-                      isActive(item.href) ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      isActive(item.href) ? 'bg-white/20 text-white' : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-300" />
+                    <item.icon className="mr-3 h-5 w-5 text-white/80 group-hover:text-white" />
                     <span className="flex-1">{item.name}</span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -175,7 +232,7 @@ const AdminSidebar: React.FC = () => {
                         <li key={subItem.name}>
                           <Link href={subItem.href}>
                             <span className={`block px-3 py-2 text-sm font-medium rounded-md ${
-                              isActive(subItem.href) ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                              isActive(subItem.href) ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'
                             }`}>
                               {subItem.name}
                             </span>
@@ -189,10 +246,10 @@ const AdminSidebar: React.FC = () => {
                 // サブメニューがない場合
                 <Link href={item.href}>
                   <span className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                    isActive(item.href) ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'
                   }`}>
                     <item.icon className={`mr-3 h-5 w-5 ${
-                      isActive(item.href) ? 'text-gray-300' : 'text-gray-400 group-hover:text-gray-300'
+                      isActive(item.href) ? 'text-white' : 'text-white/80 group-hover:text-white'
                     }`} />
                     {item.name}
                   </span>
@@ -204,18 +261,18 @@ const AdminSidebar: React.FC = () => {
       </nav>
       
       {/* フッター */}
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-4 border-t border-white/20">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="h-9 w-9 rounded-full bg-gray-600 flex items-center justify-center text-sm font-medium text-white">
+            <div className="h-9 w-9 rounded-full bg-secondary-400 flex items-center justify-center text-sm font-medium text-white">
               管理
             </div>
           </div>
           <div className="ml-3">
             <p className="text-sm font-medium text-white">管理者</p>
-            <p className="text-xs text-gray-400">管理者アカウント</p>
+            <p className="text-xs text-white/80">管理者アカウント</p>
           </div>
-          <button className="ml-auto bg-gray-700 p-1 rounded-full text-gray-400 hover:text-white">
+          <button className="ml-auto bg-white/20 p-1 rounded-full text-white hover:text-white hover:bg-white/40">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>

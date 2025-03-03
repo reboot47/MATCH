@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
-import { AdminReportWithUsers } from '@/lib/api/admin';
+import { AdminReportWithUsers } from '../../lib/api/admin';
 import Image from 'next/image';
 
 interface ReportDetailModalProps {

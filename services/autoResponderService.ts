@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { ResponseTemplate, ResponseRule } from '../app/admin/fake-accounts/auto-responder/types';
 
 // テンプレート関連のAPI操作
