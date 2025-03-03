@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { ChatList } from '@/components/chat';
 import { motion } from 'framer-motion';
