@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useUser } from '@/components/UserContext';
 import { 
   CreditCard, Zap, ChevronRight, Star, Gift, AlertCircle, 
-  ShieldCheck, CheckCircle2, Package, Crown, Shield
+  ShieldCheck, CheckCircle2, Package, Crown, Shield, Heart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
