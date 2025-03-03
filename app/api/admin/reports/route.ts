@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '../../../../middleware/adminAuth';
+import { auth } from '@/auth';
 
 // 異常系に対するレスポンス関数
 function errorResponse(status: number, message: string) {
@@ -8,6 +8,23 @@ function errorResponse(status: number, message: string) {
     { error: message },
     { status }
   );
+}
+
+// 管理者権限チェック関数
+async function checkAdminAccess() {
+  const session = await auth();
+  
+  if (!session || !session.user) {
+    return { authorized: false, error: 'ログインしていません。' };
+  }
+  
+  const userRole = session.user.role;
+  
+  if (userRole !== 'ADMIN' && userRole !== 'operator') {
+    return { authorized: false, error: 'この操作を行う権限がありません。' };
+  }
+  
+  return { authorized: true, error: null };
 }
 
 /**
@@ -18,9 +35,9 @@ export async function GET(request: NextRequest) {
     console.log('🔍 GET /api/admin/reports がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return errorResponse(401, authResult.error);
     }
 
     // クエリパラメータを取得
@@ -137,9 +154,9 @@ export async function PUT(request: NextRequest) {
     console.log('🔍 PUT /api/admin/reports がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return errorResponse(401, authResult.error);
     }
 
     // リクエストボディの解析
@@ -224,9 +241,9 @@ export async function DELETE(request: NextRequest) {
     console.log('🔍 DELETE /api/admin/reports がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return errorResponse(401, authResult.error);
     }
 
     // リクエストボディの解析

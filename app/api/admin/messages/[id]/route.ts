@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '../../../../../middleware/adminAuth';
-import { withMockAdminAuth } from '../../../../../lib/auth/withAdminAuth';
+import { auth } from '@/auth';
+
+// 管理者権限チェック関数
+async function checkAdminAccess() {
+  const session = await auth();
+  
+  if (!session || !session.user) {
+    return { authorized: false, error: 'ログインしていません。' };
+  }
+  
+  const userRole = session.user.role;
+  
+  if (userRole !== 'ADMIN' && userRole !== 'operator') {
+    return { authorized: false, error: 'この操作を行う権限がありません。' };
+  }
+  
+  return { authorized: true, error: null };
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -11,9 +27,12 @@ export async function PATCH(
     console.log(`🔄 PATCH /api/admin/messages/${params.id} がリクエストされました`);
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
     }
 
     // リクエストボディからデータを取得
@@ -118,9 +137,12 @@ export async function DELETE(
     console.log(`🗑️ DELETE /api/admin/messages/${params.id} がリクエストされました`);
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
     }
 
     // IDを取得
@@ -178,7 +200,18 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  return withMockAdminAuth(async () => {
+  try {
+    console.log(`🔄 PUT /api/admin/messages/${params.id} がリクエストされました`);
+    
+    // 管理者権限チェック
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
+    }
+
     const id = params.id;
     
     try {
@@ -235,5 +268,12 @@ export async function PUT(
       console.error(`Error updating message ${id}:`, error);
       return NextResponse.json({ error: 'Failed to update message' }, { status: 500 });
     }
-  });
+    
+  } catch (error) {
+    console.error('❌ メッセージ更新APIエラー:', error);
+    return NextResponse.json(
+      { error: 'メッセージの更新中にエラーが発生しました' },
+      { status: 500 }
+    );
+  }
 }

@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '../../../../middleware/adminAuth';
+import { auth } from '@/auth';
 
 // BigInt to JSON Serialization
 BigInt.prototype.toJSON = function() {
   return this.toString();
 };
+
+// 管理者権限チェック関数
+async function checkAdminAccess() {
+  const session = await auth();
+  
+  if (!session || !session.user) {
+    return { authorized: false, error: 'ログインしていません。' };
+  }
+  
+  const userRole = session.user.role;
+  
+  if (userRole !== 'ADMIN' && userRole !== 'operator') {
+    return { authorized: false, error: 'この操作を行う権限がありません。' };
+  }
+  
+  return { authorized: true, error: null };
+}
 
 // モックデータ - 実際の実装ではデータベースから取得
 let mockMessages = [
@@ -61,9 +78,12 @@ export async function GET(request: NextRequest) {
     console.log('🔍 GET /api/admin/messages がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
     }
 
     // クエリパラメータを取得
@@ -236,9 +256,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     console.log('🔄 PATCH /api/admin/messages がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
     }
 
     // リクエストボディの取得
@@ -307,9 +330,12 @@ export async function DELETE(request: NextRequest) {
     console.log('🗑️ DELETE /api/admin/messages がリクエストされました');
     
     // 管理者権限チェック
-    const authResult = await adminAuthMiddleware(request);
-    if (authResult) {
-      return authResult;
+    const authResult = await checkAdminAccess();
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
     }
 
     // URLからメッセージIDを取得
