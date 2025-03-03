@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '@/middleware/adminAuth';
+import { adminAuthMiddleware } from '../../../../middleware/adminAuth';
 
 // BigInt to JSON Serialization
 BigInt.prototype.toJSON = function() {

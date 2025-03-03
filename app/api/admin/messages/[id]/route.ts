@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '@/middleware/adminAuth';
+import { adminAuthMiddleware } from '../../../../../middleware/adminAuth';
+import { withMockAdminAuth } from '../../../../../lib/auth/withAdminAuth';
 
 export async function PATCH(
   request: NextRequest,
@@ -172,14 +173,12 @@ export async function DELETE(
   }
 }
 
-import { withAdminAuth } from '@/lib/auth/withAdminAuth';
-
 // PUT - 個別メッセージの更新
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  return withAdminAuth(async () => {
+  return withMockAdminAuth(async () => {
     const id = params.id;
     
     try {

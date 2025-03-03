@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { adminAuthMiddleware } from '@/middleware/adminAuth';
+import { adminAuthMiddleware } from '../../../../middleware/adminAuth';
 
 // 異常系に対するレスポンス関数
 function errorResponse(status: number, message: string) {
