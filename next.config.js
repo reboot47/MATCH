@@ -41,6 +41,8 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002', 'localhost:3003']
     },
   },
+  // 静的エクスポートを無効にする
+  output: 'standalone',
 };
 
 module.exports = nextConfig;

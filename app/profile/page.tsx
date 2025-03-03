@@ -8,13 +8,13 @@ import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 
 // 新しいコンポーネントのインポート
-import ProfileNavigation from '../components/profile/ProfileNavigation';
-import ProfileCompletionCard from '../components/profile/ProfileCompletionCard';
-import MediaGallery from '../components/profile/MediaGallery';
-import PersonalityTest from '../components/profile/PersonalityTest';
-import ProfileDetails from '../components/profile/ProfileDetails';
-import MatchingPreferences from '../components/profile/MatchingPreferences';
-import VerificationCenter from '../components/profile/VerificationCenter';
+import ProfileNavigation from '@/app/components/profile/ProfileNavigation';
+import ProfileCompletionCard from '@/app/components/profile/ProfileCompletionCard';
+import MediaGallery from '@/app/components/profile/MediaGallery';
+import PersonalityTest from '@/app/components/profile/PersonalityTest';
+import ProfileDetails from '@/app/components/profile/ProfileDetails';
+import MatchingPreferences from '@/app/components/profile/MatchingPreferences';
+import VerificationCenter from '@/app/components/profile/VerificationCenter';
 
 // モックデータ型定義
 interface UserWithPhotos {
@@ -52,6 +52,9 @@ interface UserWithPhotos {
     priorities: Record<string, number>;
   };
 }
+
+// 動的レンダリングの設定
+export const dynamic = 'force-dynamic';
 
 export default function ProfilePage() {
   const router = useRouter();
