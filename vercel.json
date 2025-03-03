@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "outputDirectory": ".next",
   "cleanUrls": true,
+  "installCommand": "npm install",
   "headers": [
     {
       "source": "/(.*)",
@@ -26,5 +27,10 @@
       ]
     }
   ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
   "regions": ["hnd1"]
 }
