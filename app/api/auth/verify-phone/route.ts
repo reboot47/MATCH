@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendVerificationCode } from '@/lib/twilio';
+import { sendVerificationCode } from '@/lib';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 
