@@ -8,19 +8,20 @@ const ADMIN_USER_IDS = ["1", "4"];
 // 保護対象外のパス
 const PUBLIC_PATHS = ["/admin-login", "/admin/login", "/login"];
 
+// リダイレクト・マッピングは実際の画像ファイル置き換えにより不要になりました
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  console.log("ミドルウェア実行:", pathname);
+  
+  // 実際の画像ファイルを生成したため、リダイレクト処理は不要になりました
   
   // 保護対象外のパスはスキップ
   if (PUBLIC_PATHS.some(path => pathname === path)) {
-    console.log("保護対象外のパス:", pathname);
     return NextResponse.next();
   }
 
   // 管理者パスかどうかをチェック
   const isAdminRoute = pathname.startsWith("/admin");
-  console.log("管理者ルート:", isAdminRoute);
   
   if (!isAdminRoute) {
     // 管理者ルート以外は認証チェックをせずに通過
@@ -28,7 +29,6 @@ export async function middleware(request: NextRequest) {
   }
   
   const session = await auth();
-  console.log("セッション:", session);
   
   // ログインしていない場合は、ログインページへリダイレクト
   if (!session || !session.user) {
