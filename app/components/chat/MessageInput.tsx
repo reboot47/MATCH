@@ -625,22 +625,25 @@ export default function MessageInput({
                 <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300 bg-black relative group transition-all duration-200 hover:shadow-md hover:border-[#06c755]">
                   {/* サムネイルがあれば表示 */}
                   {attachment.thumbnailUrl ? (
-                    <Image 
-                      src={attachment.thumbnailUrl} 
-                      alt="動画サムネイル" 
-                      width={80} 
-                      height={80} 
-                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                    />
+                    <div className="w-full h-full relative">
+                      <Image 
+                        src={attachment.thumbnailUrl} 
+                        alt="動画サムネイル" 
+                        width={80} 
+                        height={80} 
+                        className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black">
                       <HiVideoCamera className="text-white w-8 h-8 group-hover:scale-110 transition-transform duration-200" />
                     </div>
                   )}
                   {/* 動画再生アイコン */}
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
                     <div className="w-8 h-8 bg-[#06c755] bg-opacity-90 rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:bg-opacity-100 transition-all duration-200">
-                      <div className="w-0 h-0 border-t-transparent border-t-6 border-b-transparent border-b-6 border-l-white border-l-10 ml-1"></div>
+                      <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[10px] border-l-white ml-0.5"></div>
                     </div>
                   </div>
                   {/* 動画タイトルツールチップ */}
