@@ -305,12 +305,7 @@ const ChatMessage = ({
                     <p className="font-medium truncate">{attachment.title}</p>
                   </div>
                 )}
-                {/* 動画の再生ボタン（コントロールが表示される前のオーバーレイ） */}
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                  <div className="w-12 h-12 bg-[#06c755] bg-opacity-80 rounded-full flex items-center justify-center shadow-md">
-                    <div className="w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[15px] border-l-white ml-1"></div>
-                  </div>
-                </div>
+                {/* 動画のタイトルの表示を改善 */}
               </div>
             );
           } else if (attachment.type === 'location') {
