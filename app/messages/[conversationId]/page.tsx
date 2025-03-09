@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import React from 'react';
+import { toast } from 'react-hot-toast';
 import ChatRoom from '@/app/components/chat/ChatRoom';
 import { Conversation, Message, MessageStatus, ImageAttachment, VideoAttachment, LocationAttachment, UrlAttachment } from '@/app/types/chat';
+import { useUser } from '@/components/UserContext';
 
 interface Params {
   conversationId: string;
@@ -202,11 +205,18 @@ const getMockConversation = (conversationId: string): Conversation => {
 };
 
 export default function ConversationPage({ params }: { params: Params }) {
-  const { conversationId } = params;
+  // React.use()でパラメータを適切に処理
+  const unwrappedParams = React.use(params as any);
+  const { conversationId } = unwrappedParams;
   const router = useRouter();
+  const { user, points, setPoints } = useUser();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [userPoints, setUserPoints] = useState<number>(points?.balance || 0);
+  
+  // メッセージ送信に必要なポイント
+  const requiredPointsPerMessage = 5;
   
   useEffect(() => {
     // 実際のアプリではAPIから会話データを取得
@@ -275,6 +285,13 @@ export default function ConversationPage({ params }: { params: Params }) {
             : msg
         )
       );
+      
+      // 女性ユーザーの場合、相手からメッセージを受信するとポイント獲得
+      if (user?.gender === 'female' && newMessage.senderId !== mockCurrentUserId) {
+        const earnedPoints = requiredPointsPerMessage;
+        handlePointsUpdated(userPoints + earnedPoints);
+        toast.success(`${earnedPoints}ポイントを獲得しました！`);
+      }
       
       // メッセージ配信シミュレーション（デモ用）
       setTimeout(() => {
@@ -358,6 +375,39 @@ export default function ConversationPage({ params }: { params: Params }) {
     // 音声通話機能へのナビゲーション（今後実装）
     alert("音声通話機能は実装中です");
   };
+  
+  // ポイント購入ハンドラー
+  const handlePurchasePoints = () => {
+    // 実際のアプリではポイント購入画面に遷移
+    const purchaseAmount = 100;
+    toast.promise(
+      new Promise((resolve) => {
+        // ポイント購入シミュレーション
+        setTimeout(() => {
+          handlePointsUpdated(userPoints + purchaseAmount);
+          resolve(purchaseAmount);
+        }, 1500);
+      }),
+      {
+        loading: 'ポイント購入処理中...',
+        success: `${purchaseAmount}ポイントを購入しました！`,
+        error: 'ポイント購入に失敗しました。',
+      }
+    );
+  };
+  
+  // ポイント更新ハンドラー
+  const handlePointsUpdated = (newPoints: number) => {
+    setUserPoints(newPoints);
+    
+    // アプリ全体のポイント残高を更新
+    if (setPoints && points) {
+      setPoints({
+        ...points,
+        balance: newPoints
+      });
+    }
+  };
 
   if (!conversation) {
     return (
@@ -374,7 +424,7 @@ export default function ConversationPage({ params }: { params: Params }) {
         <div className="p-4 text-center">
           <button
             onClick={handleBackClick}
-            className="text-primary-500 hover:underline text-sm"
+            className="text-teal-500 hover:underline text-sm"
           >
             ← 会話一覧に戻る
           </button>
@@ -386,6 +436,8 @@ export default function ConversationPage({ params }: { params: Params }) {
           conversation={conversation}
           messages={messages}
           currentUserId={mockCurrentUserId}
+          userGender={user?.gender || 'male'}
+          userPoints={userPoints}
           onBackClick={handleBackClick}
           onSendMessage={handleSendMessage}
           onReaction={handleReaction}
@@ -394,7 +446,10 @@ export default function ConversationPage({ params }: { params: Params }) {
           onTypingEnd={handleTypingEnd}
           onVideoCallStart={handleVideoCallStart}
           onVoiceCallStart={handleVoiceCallStart}
+          onPurchasePoints={handlePurchasePoints}
+          onPointsUpdated={handlePointsUpdated}
           typingUsers={typingUsers}
+          requiredPointsPerMessage={requiredPointsPerMessage}
         />
       </div>
     </main>

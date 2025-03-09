@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { uploadImage } from '@/lib/cloudinary';
 
 // Cloudinary設定をテストするためのデバッグエンドポイント
 export async function GET(req: NextRequest) {
@@ -35,16 +36,54 @@ export async function GET(req: NextRequest) {
       };
     }
     
+    // テストアップロードを試行
+    let uploadTest = { success: false, message: 'Not attempted' };
+    
+    // クエリパラメータでテストアップロードを要求した場合のみ実行
+    const testUpload = req.nextUrl.searchParams.get('testUpload');
+    if (testUpload === 'true') {
+      try {
+        // 小さなサンプル画像（Base64エンコード）
+        const sampleImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFeAJcIiLEUQAAAABJRU5ErkJggg==';
+        
+        // テスト用フォルダにアップロード
+        const uploadResult = await uploadImage(sampleImage, 'linebuzz/test');
+        
+        uploadTest = {
+          success: true,
+          url: uploadResult.url,
+          publicId: uploadResult.publicId,
+          message: 'テストアップロードが成功しました'
+        };
+        
+        // テスト画像を削除
+        await cloudinary.uploader.destroy(uploadResult.publicId);
+      } catch (uploadError) {
+        uploadTest = {
+          success: false,
+          message: 'テストアップロードに失敗しました',
+          error: uploadError.message,
+          details: uploadError
+        };
+      }
+    }
+    
     return NextResponse.json({
       env: cloudinaryConfig,
       config: configCheck,
-      connectionTest
+      connectionTest,
+      uploadTest,
+      timestamp: new Date().toISOString(),
+      usage: {
+        testUpload: '?testUpload=true クエリパラメータでテストアップロードを実行できます'
+      }
     }, { status: 200 });
   } catch (error) {
     console.error('Cloudinaryデバッグエラー:', error);
     return NextResponse.json({
       error: 'Cloudinaryデバッグ中にエラーが発生しました',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 });
   }
 }

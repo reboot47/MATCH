@@ -192,7 +192,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md mx-auto">
         <div className="bg-white p-8 rounded-2xl shadow-lg">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-600 mb-2">LINEBUZZ</h1>
+            <h1 className="text-3xl font-bold text-teal-600 mb-2">LINEBUZZ</h1>
             <p className="text-gray-600">管理者パネルにログイン</p>
           </div>
 
@@ -219,7 +219,7 @@ export default function AdminLoginPage() {
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <HiOutlineMail className="h-5 w-5 text-blue-500" />
+                      <HiOutlineMail className="h-5 w-5 text-teal-500" />
                     </div>
                     <input
                       id="email"
@@ -230,7 +230,7 @@ export default function AdminLoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={isLocked}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
                       placeholder="example@linebuzz.jp"
                     />
                   </div>
@@ -242,7 +242,7 @@ export default function AdminLoginPage() {
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <HiOutlineLockClosed className="h-5 w-5 text-blue-500" />
+                      <HiOutlineLockClosed className="h-5 w-5 text-teal-500" />
                     </div>
                     <input
                       id="password"
@@ -253,7 +253,7 @@ export default function AdminLoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isLocked}
-                      className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                      className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
                       placeholder="••••••••"
                     />
                     <button
@@ -278,7 +278,7 @@ export default function AdminLoginPage() {
                       name="remember-me"
                       type="checkbox"
                       disabled={isLocked}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
                     />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                       ログイン状態を保持
@@ -289,7 +289,7 @@ export default function AdminLoginPage() {
                     <button
                       type="button"
                       onClick={handleForgotPassword}
-                      className="font-medium text-blue-600 hover:text-blue-500"
+                      className="font-medium text-teal-600 hover:text-teal-500"
                     >
                       パスワードをお忘れですか？
                     </button>
@@ -303,7 +303,7 @@ export default function AdminLoginPage() {
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <HiOutlineShieldCheck className="h-5 w-5 text-blue-500" />
+                    <HiOutlineShieldCheck className="h-5 w-5 text-teal-500" />
                   </div>
                   <input
                     id="twoFactorCode"
@@ -316,7 +316,7 @@ export default function AdminLoginPage() {
                     required
                     value={twoFactorCode}
                     onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
                     placeholder="6桁のコードを入力"
                   />
                 </div>
@@ -330,7 +330,7 @@ export default function AdminLoginPage() {
               <button
                 type="submit"
                 disabled={loading || isLocked}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -346,7 +346,7 @@ export default function AdminLoginPage() {
           <div className="mt-6">
             <p className="text-xs text-center text-gray-500">
               管理者専用ページです。一般ユーザー向けのログインは
-              <Link href="/login" className="text-blue-600 hover:text-blue-500">
+              <Link href="/login" className="text-teal-600 hover:text-teal-500">
                 こちら
               </Link>
               から。

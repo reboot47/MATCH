@@ -1,0 +1,868 @@
+import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, CheckCheck, Heart, ThumbsUp, SmilePlus, Reply, X, Trash2, Copy, Forward, Link, MapPin, Mic } from 'lucide-react';
+import UrlPreview, { UrlPreviewData } from './UrlPreview';
+
+export interface ChatMessageProps {
+  id?: string;
+  content: string;
+  timestamp: string;
+  isMe: boolean;
+  isRead?: boolean;
+  avatar?: string;
+  attachments?: {
+    type: 'image' | 'video' | 'link' | 'location' | 'audio';
+    url: string;
+    previewUrl?: string;
+    title?: string;
+    description?: string;
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+    duration?: number;
+  }[];
+  reactions?: {
+    type: string;
+    count: number;
+    users?: string[];
+  }[];
+  isDeleted?: boolean;
+  replyTo?: {
+    id: string;
+    content: string;
+    isMe: boolean;
+  };
+  onReactionAdd?: (messageId: string | undefined, reactionType: string) => void;
+  onMessageDelete?: (messageId: string | undefined) => void;
+  onReply?: (messageId: string | undefined, content: string) => void;
+}
+
+const ChatMessage = ({
+  id,
+  content,
+  timestamp,
+  isMe,
+  isRead = false,
+  avatar,
+  attachments = [],
+  reactions = [],
+  isDeleted = false,
+  replyTo,
+  onReactionAdd,
+  onMessageDelete,
+  onReply,
+}: ChatMessageProps): React.ReactNode => {
+  // 豁｣隕剰｡ｨ迴ｾ縺ｧURL繧呈､懷�縺吶ｋ
+  const detectUrls = (text: string | undefined) => {
+    if (!text) return [];
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.match(urlRegex) || [];
+  };
+  
+  // 繝｡繝�そ繝ｼ繧ｸ縺ｫURL縺悟性縺ｾ繧後※縺�ｋ縺九メ繧ｧ繝�け
+  // 繧ｳ繝ｳ繝昴�繝阪Φ繝医�繝ｬ繝ｳ繝繝ｪ繝ｳ繧ｰ譎ゅ↓荳蠎ｦ縺�縺題ｨ育ｮ励＠縲「seEffect縺ｮ萓晏ｭ倬�蛻励↓蜷ｫ繧√↑縺�
+  const urlsInContent = React.useMemo(() => {
+    return !isDeleted ? detectUrls(content) : [];
+  }, [isDeleted, content, urlsInContent]);essed, setIsLongPressed] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [urlPreviews, setUrlPreviews] = useState<UrlPreviewData[]>([]);
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageRef = useRef<HTMLDivElement>(null);
+  
+  // 髟ｷ謚ｼ縺怜�逅�
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    longPressTimeoutRef.current = setTimeout(() => {
+      setIsLongPressed(true);
+    }, 500); // 500ms 縺ｮ髟ｷ謚ｼ縺励〒繝｡繝九Η繝ｼ陦ｨ遉ｺ
+  };
+  
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+    }
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+    }
+  };
+  
+  // 繝繝悶Ν繧ｿ繝��蜃ｦ逅�ｼ医＞縺��繧剃ｻ倥￠繧具ｼ�
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (onReactionAdd && id) {
+      onReactionAdd(id, '笶､��');
+    }
+  };
+  
+  // 繝｡繝�そ繝ｼ繧ｸ繧貞炎髯､縺吶ｋ
+  const handleDelete = () => {
+    if (onMessageDelete && id) {
+      onMessageDelete(id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  // 蜑企勁繧偵く繝｣繝ｳ繧ｻ繝ｫ縺吶ｋ
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+  };
+  
+  // 繝ｪ繧｢繧ｯ繧ｷ繝ｧ繝ｳ霑ｽ蜉�
+  const handleReactionAdd = (type: string) => {
+    if (onReactionAdd && id) {
+      onReactionAdd(id, type);
+
+      // LINE鬚ｨ繝ｪ繧｢繧ｯ繧ｷ繝ｧ繝ｳ繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ蜉ｹ譫�
+      const messageElement = messageRef.current;
+      if (messageElement) {
+        const reactionBubble = document.createElement('div');
+        reactionBubble.className = 'reaction-animation';
+        reactionBubble.textContent = type;
+        reactionBubble.style.position = 'absolute';
+        reactionBubble.style.right = isMe ? '10px' : 'auto';
+        reactionBubble.style.left = isMe ? 'auto' : '10px';
+        reactionBubble.style.bottom = '0';
+        reactionBubble.style.fontSize = '2rem';
+        reactionBubble.style.opacity = '0';
+        reactionBubble.style.transform = 'translateY(0px)';
+        reactionBubble.style.transition = 'all 0.5s ease-out';
+        
+        messageElement.appendChild(reactionBubble);
+        
+        // 繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ髢句ｧ�
+        setTimeout(() => {
+          reactionBubble.style.opacity = '1';
+          reactionBubble.style.transform = 'translateY(-30px)';
+        }, 10);
+        
+        // 繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ邨ゆｺ�ｾ後↓蜑企勁
+        setTimeout(() => {
+          reactionBubble.style.opacity = '0';
+          setTimeout(() => reactionBubble.remove(), 500);
+        }, 1000);
+      }
+    }
+    setShowReactionPicker(false);
+    setIsLongPressed(false);
+  };
+  
+  // 霑比ｿ｡
+  const handleReply = () => {
+    if (onReply && id) {
+      onReply(id, content);
+    }
+    setIsLongPressed(false);
+  };
+  
+  /**
+   * URL縺ｮ譛牙柑諤ｧ繧貞ｮ牙�縺ｫ讀懆ｨｼ縺吶ｋ陬懷勧髢｢謨ｰ
+   */
+  const safeGetDomain = (url: string): string => {
+    try {
+      // URL縺檎ｩｺ縺ｮ蝣ｴ蜷医�螳牙�縺ｫ蜃ｦ逅�
+      if (!url || typeof url !== 'string') return '繝ｪ繝ｳ繧ｯ';
+      
+      // http:// 縺ｾ縺溘� https:// 縺後↑縺��ｴ蜷医�霑ｽ蜉�
+      const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
+      
+      // 譛牙柑縺ｪURL蠖｢蠑上°繧呈､懆ｨｼ
+      const urlObj = new URL(normalizedUrl);
+      return urlObj.hostname || '繝ｪ繝ｳ繧ｯ';
+    } catch (error) {
+      // URL縺ｨ縺励※辟｡蜉ｹ縺ｪ蝣ｴ蜷医�繧ｷ繝ｳ繝励Ν縺ｪ陦ｨ遉ｺ逕ｨ譁�ｭ怜�繧定ｿ斐☆
+      const fallbackDomain = url && typeof url === 'string' ? 
+        url.replace(/^https?:\/\//, '').split('/')[0] || '繝ｪ繝ｳ繧ｯ' : '繝ｪ繝ｳ繧ｯ';
+      return fallbackDomain;
+    }
+  };
+
+  // URL繧呈､懷�縺励※API縺九ｉ繝励Ξ繝薙Η繝ｼ諠��ｱ繧貞叙蠕�
+  useEffect(() => {
+    // 譌ｩ譛溘Μ繧ｿ繝ｼ繝ｳ - URL縺檎┌縺�°蜑企勁縺輔ｌ縺溘Γ繝�そ繝ｼ繧ｸ縺ｮ蝣ｴ蜷医�蜃ｦ逅�＠縺ｪ縺�
+    if (isDeleted || !urlsInContent || urlsInContent.length === 0) {
+      setUrlPreviews([]);
+      return;
+    }
+    
+    // 蛻晄悄繝ｭ繝ｼ繝�ぅ繝ｳ繧ｰ迥ｶ諷九ｒ險ｭ螳�
+    const initialPreviews = urlsInContent.map(url => ({
+      url,
+      title: '繝ｪ繝ｳ繧ｯ繧定ｪｭ縺ｿ霎ｼ縺ｿ荳ｭ...',
+      description: '',
+      image: undefined,
+      domain: safeGetDomain(url),
+      isLoading: true
+    }));
+    setUrlPreviews(initialPreviews);
+      
+      // API縺九ｉ繝��繧ｿ繧貞叙蠕励☆繧矩撼蜷梧悄髢｢謨ｰ
+      const fetchUrlPreviews = async () => {
+        try {
+          // 蜷ФRL繧剃ｸｦ陦後＠縺ｦ蜃ｦ逅�☆繧九′縲∽ｸ縺､縺ｮ繧ｨ繝ｩ繝ｼ縺悟�菴薙ｒ豁｢繧√↑縺�ｈ縺�↓
+          const previewPromises = urlsInContent.map(async (url) => {
+            try {
+              // URL縺檎┌蜉ｹ縺�縺｣縺溷�ｴ蜷医�繧ｨ繝ｩ繝ｼ繝上Φ繝峨Μ繝ｳ繧ｰ縺ｫ蟋斐�繧�
+              if (!url || typeof url !== 'string') throw new Error('辟｡蜉ｹ縺ｪURL蠖｢蠑上〒縺�');
+              
+              // 繝峨Γ繧､繝ｳ蜷阪ｒ螳牙�縺ｫ蜿門ｾ�
+              const domain = safeGetDomain(url);
+              
+              try {
+                // 繧ｿ繧､繝�繧｢繧ｦ繝井ｻ倥″縺ｮ繝輔ぉ繝�メ蜃ｦ逅�
+                const fetchPromise = fetch(`/api/url-preview?url=${encodeURIComponent(url)}`); 
+                const timeoutPromise = new Promise((_, reject) => {
+                  setTimeout(() => reject(new Error('繧ｿ繧､繝�繧｢繧ｦ繝�')), 8000);
+                });
+                
+                // 繧ｿ繧､繝�繧｢繧ｦ繝医∪縺溘�繝ｬ繧ｹ繝昴Φ繧ｹ縺ｮ縺�★繧後°縺悟�縺ｫ霑斐▲縺ｦ縺上ｋ
+                const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+                
+                if (!response.ok) {
+                  throw new Error(`API繝ｬ繧ｹ繝昴Φ繧ｹ繧ｨ繝ｩ繝ｼ: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.preview) {
+                  // API縺九ｉ蜿門ｾ励＠縺溘ョ繝ｼ繧ｿ縺ｧ繝励Ξ繝薙Η繝ｼ繧堤函謌�
+                  return {
+                    url,
+                    title: data.preview.title || domain,
+                    description: data.preview.description || '',
+                    image: data.preview.image,
+                    siteName: data.preview.siteName,
+                    domain: data.preview.domain || domain,
+                    isLoading: false
+                  };
+                } else {
+                  // 繧ｨ繝ｩ繝ｼ譎ゅ�繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ
+                  console.error('URL繝励Ξ繝薙Η繝ｼ蜿門ｾ怜､ｱ謨�:', data.error);
+                  return {
+                    url,
+                    title: domain,
+                    description: '繝ｪ繝ｳ繧ｯ諠��ｱ繧貞叙蠕励〒縺阪∪縺帙ｓ縺ｧ縺励◆',
+                    image: undefined,
+                    domain,
+                    isLoading: false,
+                    error: data.error
+                  };
+                }
+              } catch (fetchError) {
+                // 繝阪ャ繝医Ρ繝ｼ繧ｯ繧ｨ繝ｩ繝ｼ繧�ち繧､繝�繧｢繧ｦ繝域凾縺ｮ蜃ｦ逅�
+                const isAbortError = fetchError instanceof DOMException && fetchError.name === 'AbortError';
+                const errorMsg = isAbortError ? '謗･邯壹′繧ｿ繧､繝�繧｢繧ｦ繝医＠縺ｾ縺励◆' : '繧ｵ繝ｼ繝舌�縺ｫ謗･邯壹〒縺阪∪縺帙ｓ縺ｧ縺励◆';
+                
+                console.error(`URL繝励Ξ繝薙Η繝ｼ蜿門ｾ励お繝ｩ繝ｼ (${url}):`, fetchError);
+                return {
+                  url,
+                  title: domain,
+                  description: errorMsg, 
+                  image: undefined,
+                  domain,
+                  isLoading: false,
+                  error: String(fetchError)
+                };
+              }
+            } catch (urlError) {
+              // URL縺ｮ繝代�繧ｹ閾ｪ菴薙↓螟ｱ謨励＠縺溷�ｴ蜷�
+              console.error(`辟｡蜉ｹ縺ｪURL: ${url}`, urlError);
+              const fallbackDomain = url.replace(/^https?:\/\//, '').split('/')[0] || '繝ｪ繝ｳ繧ｯ';
+              return {
+                url,
+                title: fallbackDomain,
+                description: '辟｡蜉ｹ縺ｪURL繝輔か繝ｼ繝槭ャ繝医〒縺�',
+                image: undefined,
+                domain: fallbackDomain,
+                isLoading: false,
+                error: String(urlError)
+              };
+            }
+          });
+          
+          // 蜈ｨ縺ｦ縺ｮ繝励Ξ繝薙Η繝ｼ邨先棡繧貞庶髮�
+          const previews = await Promise.all(previewPromises);
+          setUrlPreviews(previews);
+        } catch (error) {
+          console.error('URL繝励Ξ繝薙Η繝ｼ蜃ｦ逅�お繝ｩ繝ｼ:', error);
+          // 閾ｴ蜻ｽ逧�↑繧ｨ繝ｩ繝ｼ譎ゅｂ蝓ｺ譛ｬ逧�↑諠��ｱ繧定｡ｨ遉ｺ
+          const basicPreviews = urlsInContent.map(url => ({
+            url,
+            title: url,
+            description: '繝励Ξ繝薙Η繝ｼ繧定｡ｨ遉ｺ縺ｧ縺阪∪縺帙ｓ',
+            isLoading: false,
+            error: String(error)
+          }));
+          setUrlPreviews(basicPreviews);
+        }
+      };
+
+      // API繝ｪ繧ｯ繧ｨ繧ｹ繝医ｒ螳溯｡�
+      fetchUrlPreviews();
+    }
+  }, [isDeleted, content, urlsInContent]);�繧ｷ繝ｧ繝ｳ險ｭ螳�
+  const messageVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 },
+  };
+
+  const renderAttachment = (attachment: NonNullable<ChatMessageProps['attachments']>[number], index: number) => {
+    switch (attachment.type) {
+      case 'image':
+        return (
+          <div key={index} className="relative mb-1 overflow-hidden rounded-lg w-full max-w-[240px]">
+            <div className="relative pb-[65%] w-full"> {/* 繧｢繧ｹ繝壹け繝域ｯ斐ｒ邯ｭ謖√☆繧九さ繝ｳ繝�リ */}
+              <Image
+                src={attachment.url}
+                alt="Attached image"
+                width={240}
+                height={180}
+                className="absolute inset-0 w-full h-full object-cover rounded-lg"
+              />
+            </div>
+            <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-1.5 py-0.5 rounded-full">
+              諡｡螟ｧ
+            </div>
+          </div>
+        );
+      case 'video':
+        return (
+          <div key={index} className="relative mb-1 overflow-hidden rounded-lg">
+            <video 
+              controls
+              className="w-full max-w-[240px] rounded-lg"
+              poster={attachment.previewUrl}
+            >
+              <source src={attachment.url} type="video/mp4" />
+              縺贋ｽｿ縺��繝悶Λ繧ｦ繧ｶ縺ｯ蜍慕判蜀咲函縺ｫ蟇ｾ蠢懊＠縺ｦ縺�∪縺帙ｓ縲�
+            </video>
+            <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center">
+              <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+              蜍慕判
+            </div>
+          </div>
+        );
+      case 'audio':
+        return (
+          <div key={index} className={`flex items-center mb-1 p-2 ${isMe ? 'bg-[#06c755] bg-opacity-10' : 'bg-white'} rounded-lg shadow-sm w-full max-w-[240px]`}>
+            <div className={`flex-shrink-0 mr-3 w-8 h-8 rounded-full ${isMe ? 'bg-[#06c755] bg-opacity-20' : 'bg-blue-100'} flex items-center justify-center`}>
+              <Mic size={16} className={isMe ? 'text-[#06c755]' : 'text-blue-500'} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <audio controls className="w-full">
+                <source src={attachment.url} type="audio/webm" />
+                縺贋ｽｿ縺��繝悶Λ繧ｦ繧ｶ縺ｯ髻ｳ螢ｰ蜀咲函縺ｫ蟇ｾ蠢懊＠縺ｦ縺�∪縺帙ｓ縲�
+              </audio>
+              {attachment.duration && (
+                <p className={`text-xs ${isMe ? 'text-[#06c755]' : 'text-gray-500'} mt-1`}>
+                  {Math.floor(attachment.duration / 60).toString().padStart(2, '0')}:{(attachment.duration % 60).toString().padStart(2, '0')}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      case 'location':
+        return (
+          <div key={index} className="mb-1 overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow w-full max-w-[240px]">
+            <div className="relative w-full h-32 overflow-hidden">
+              <a 
+                href={`https://maps.google.com/maps?q=${attachment.latitude},${attachment.longitude}&z=16&output=embed`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Image
+                  src={`https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+06c755(${attachment.longitude},${attachment.latitude})/${attachment.longitude},${attachment.latitude},14,0/240x180?access_token=pk.eyJ1IjoibGluZWJ1enoiLCJhIjoiY2xybngxazJlMGJ6NjJqbzJ6dWNjNHV1dCJ9.IH3_hXvKPVLYXpMlWMgpfA`}
+                  alt="Location map"
+                  width={240}
+                  height={180}
+                  className="object-cover w-full h-full"
+                />
+              </a>
+            </div>
+            <div className="p-2">
+              <h4 className="font-medium text-sm text-gray-800 line-clamp-1">
+                {attachment.title || '菴咲ｽｮ諠��ｱ'}
+              </h4>
+              {attachment.address && (
+                <p className="text-xs text-gray-500 line-clamp-2 mt-1">{attachment.address}</p>
+              )}
+              <div className="flex items-center mt-1.5">
+                <MapPin className="h-3 w-3 text-primary-500 mr-1" />
+                <a 
+                  href={`https://maps.google.com/maps?q=${attachment.latitude},${attachment.longitude}&z=16`}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:text-blue-700 truncate"
+                >
+                  蝨ｰ蝗ｳ縺ｧ隕九ｋ
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      case 'link':
+        return (
+          <a
+            key={index}
+            href={attachment.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex mb-1 overflow-hidden ${isMe ? 'bg-[#06c755] bg-opacity-10' : 'bg-white'} rounded-lg shadow-sm hover:shadow-md transition-shadow max-w-[280px]`}
+          >
+            <div className="w-24 h-24 bg-gray-100 flex-shrink-0 relative overflow-hidden">
+              {attachment.previewUrl ? (
+                <Image
+                  src={attachment.previewUrl}
+                  alt={attachment.title || 'Link preview'}
+                  width={96}
+                  height={96}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                  <Link size={24} className="text-gray-400" />
+                </div>
+              )}
+              <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 truncate">
+                {new URL(attachment.url).hostname}
+              </div>
+            </div>
+            <div className="p-2 flex-1 min-w-0 flex flex-col justify-between">
+              <div>
+                <h4 className={`font-medium text-sm ${isMe ? 'text-[#06c755]' : 'text-gray-800'} line-clamp-2`}>
+                  {attachment.title || 'Web繝壹�繧ｸ繧定ｦ九ｋ'}
+                </h4>
+                {attachment.description && (
+                  <p className={`text-xs ${isMe ? 'text-[#06c755] text-opacity-80' : 'text-gray-500'} line-clamp-2 mt-1`}>
+                    {attachment.description}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center mt-auto pt-1">
+                <Link className={`h-3 w-3 ${isMe ? 'text-[#06c755]' : 'text-blue-500'} mr-1`} />
+                <span className={`text-xs ${isMe ? 'text-[#06c755]' : 'text-blue-500'} truncate`}>
+                  {attachment.url.replace(/^https?:\/\//, '').split('/')[0]}
+                </span>
+              </div>
+            </div>
+          </a>
+        );
+      case 'location':
+        return (
+          <div key={index} className={`mb-1 overflow-hidden ${isMe ? 'bg-[#06c755] bg-opacity-10' : 'bg-white'} rounded-lg shadow-sm w-full max-w-[240px]`}>
+            <a 
+              href={`https://maps.google.com/maps?q=${attachment.latitude},${attachment.longitude}&z=16`}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="block relative"
+            >
+              <div className="relative w-full h-32 overflow-hidden rounded-t-lg">
+                <Image
+                  src={attachment.previewUrl || `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+06c755(${attachment.longitude},${attachment.latitude})/${attachment.longitude},${attachment.latitude},14,0/240x180?access_token=pk.eyJ1IjoibGluZWJ1enoiLCJhIjoiY2xybngxazJlMGJ6NjJqbzJ6dWNjNHV1dCJ9.IH3_hXvKPVLYXpMlWMgpfA`}
+                  alt="Location map"
+                  width={240}
+                  height={180}
+                  className="object-cover w-full h-full"
+                />
+                <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center">
+                  <MapPin size={12} className="mr-1" />
+                  菴咲ｽｮ諠��ｱ
+                </div>
+              </div>
+            </a>
+            <div className="p-2">
+              <h4 className={`font-medium text-sm ${isMe ? 'text-[#06c755]' : 'text-gray-800'} line-clamp-1`}>
+                {attachment.title || '菴咲ｽｮ諠��ｱ'}
+              </h4>
+              {attachment.address && (
+                <p className={`text-xs ${isMe ? 'text-[#06c755] text-opacity-80' : 'text-gray-500'} line-clamp-2 mt-1`}>
+                  {attachment.address}
+                </p>
+              )}
+              <div className="flex items-center mt-1.5">
+                <MapPin className={`h-3 w-3 ${isMe ? 'text-[#06c755]' : 'text-blue-500'} mr-1`} />
+                <span className={`text-xs ${isMe ? 'text-[#06c755]' : 'text-blue-500'}`}>
+                  Google Maps縺ｧ髢九￥
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <motion.div
+      className={`flex mb-4 ${isMe ? 'justify-end' : 'justify-start'} max-w-full clear-both relative`}
+      initial="hidden"
+      animate="visible"
+      variants={messageVariants}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Avatar for sender - only show on the first message or after a gap */}
+      {!isMe && avatar && (
+        <div className="mr-1 flex-shrink-0 mt-auto mb-1">
+          <div className="w-8 h-8 rounded-full overflow-hidden">
+            <Image
+              src={avatar}
+              alt="Profile"
+              width={32}
+              height={32}
+              className="object-cover w-full h-full"
+            />
+          </div>
+        </div>
+      )}
+      
+      <div 
+        ref={messageRef}
+        className={`max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'} overflow-hidden`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        onDoubleClick={handleDoubleClick}
+      >
+        {/* 蠑慕畑霑比ｿ｡陦ｨ遉ｺ */}
+        {replyTo && (
+          <div className={`
+            mb-1 px-2 py-1 text-xs border-l-2 rounded ${isMe ? 'border-white bg-[#05b64b] text-white' : 'border-[#06c755] bg-gray-100 text-gray-600'}
+          `}>
+            <p className="truncate max-w-full">{replyTo.content}</p>
+          </div>
+        )}
+
+        <div 
+          className={`
+            rounded-xl px-3 py-2 inline-block max-w-full overflow-hidden
+            ${isDeleted 
+              ? 'bg-transparent p-0' 
+              : isMe 
+                ? 'bg-[#06c755] text-white rounded-tr-sm' 
+                : 'bg-white text-gray-800 rounded-tl-sm border border-gray-200'
+            }
+          `}
+        >
+          {attachments && attachments.length > 0 && (
+            <div className="mb-2 w-full overflow-hidden">
+              {attachments.length === 1 ? (
+                // 蜊倅ｸ逕ｻ蜒上�蝣ｴ蜷�
+                <div className="w-full">
+                  {renderAttachment(attachments[0], 0)}
+                </div>
+              ) : (
+                // 隍�焚逕ｻ蜒上�蝣ｴ蜷�
+                <div className={`grid gap-1 ${attachments.length === 2 ? 'grid-cols-2' : attachments.length >= 3 ? 'grid-cols-3' : ''}`}>
+                  {attachments.map((attachment, idx) => (
+                    <div key={idx} className={`
+                      ${attachments.length === 3 && idx === 0 ? 'col-span-3' : ''}
+                      ${attachments.length === 4 && idx < 2 ? 'col-span-2' : ''}
+                      ${attachments.length > 4 ? 'max-h-24' : ''}
+                    `}>
+                      {renderAttachment(attachment, idx)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {isDeleted ? (
+            <div className="flex justify-center w-full">
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl py-2 px-4 text-center inline-flex items-center max-w-[85%]">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-xs text-gray-500 dark:text-gray-400">縺薙�繝｡繝�そ繝ｼ繧ｸ縺ｯ騾∽ｿ｡閠�↓繧医▲縺ｦ蜿悶ｊ豸医＆繧後∪縺励◆</span>
+              </div>
+            </div>
+          ) : content ? (
+            <>
+              {/* 繝｡繝�そ繝ｼ繧ｸ蜀��URL繧呈､懷�縺励※繧ｯ繝ｪ繝�け蜿ｯ閭ｽ縺ｪ繝ｪ繝ｳ繧ｯ縺ｫ縺吶ｋ */}
+              <p className="text-sm whitespace-pre-wrap break-words w-full overflow-hidden">
+                {urlsInContent.length > 0 ? (
+                  <>
+                    {content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
+                      if (part.match(/^https?:\/\//)) {
+                        return (
+                          <a
+                            key={i}
+                            href={part}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`underline ${isMe ? 'text-white' : 'text-blue-500'}`}
+                          >
+                            {part}
+                          </a>
+                        );
+                      }
+                      return part;
+                    })}
+                  </>
+                ) : (
+                  content
+                )}
+              </p>
+              
+              {/* 讀懷�縺励◆URL縺ｫ蟇ｾ縺励※LINE鬚ｨ縺ｮ繝励Ξ繝薙Η繝ｼ陦ｨ遉ｺ繧定ｿｽ蜉� */}
+              {urlPreviews.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {urlPreviews.map((preview, idx) => (
+                    <a 
+                      key={`url-preview-${idx}`} 
+                      href={preview.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block ${isMe ? 'bg-[#06c755] bg-opacity-10' : 'bg-white'} rounded-md overflow-hidden shadow-sm border ${isMe ? 'border-white border-opacity-10' : 'border-gray-100'} hover:shadow-md transition-shadow`}
+                      style={{ maxWidth: '100%' }}
+                    >
+                      <div className="flex">
+                        <div className="w-24 h-24 bg-gray-100 flex-shrink-0 relative overflow-hidden">
+                          {preview.image ? (
+                            <Image 
+                              src={preview.image} 
+                              alt={preview.title || '繝ｪ繝ｳ繧ｯ繝励Ξ繝薙Η繝ｼ'}
+                              width={96}
+                              height={96}
+                              className="object-cover w-full h-full"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full bg-gray-50">
+                              <Link size={24} className="text-gray-400" />
+                            </div>
+                          )}
+                          <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 truncate">
+                            {preview.domain || new URL(preview.url).hostname}
+                          </div>
+                        </div>
+                        <div className="p-2 flex-1 min-w-0 flex flex-col justify-between">
+                          <div>
+                            <h4 className={`font-medium text-sm ${isMe ? 'text-[#06c755]' : 'text-gray-800'} line-clamp-2`}>
+                              {preview.title || 'Web繝壹�繧ｸ繧定ｦ九ｋ'}
+                            </h4>
+                            {preview.description && (
+                              <p className={`text-xs ${isMe ? 'text-[#06c755] text-opacity-80' : 'text-gray-500'} line-clamp-2 mt-1`}>
+                                {preview.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center mt-auto pt-1">
+                            <Link className={`h-3 w-3 ${isMe ? 'text-[#06c755]' : 'text-blue-500'} mr-1`} />
+                            <span className={`text-xs ${isMe ? 'text-[#06c755]' : 'text-blue-500'} truncate`}>
+                              {preview.domain || preview.url.replace(/^https?:\/\//, '').split('/')[0]}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : null}
+          
+          {reactions && reactions.length > 0 && (
+            <div className={`flex mt-1 space-x-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+              {reactions.map((reaction, index) => (
+                <span 
+                  key={index}
+                  className={`inline-flex items-center justify-center px-1.5 py-0.5 text-xs ${isMe ? 'bg-white bg-opacity-20' : 'bg-[#06c755] bg-opacity-10 text-[#06c755]'} rounded-full`}
+                >
+                  {reaction.type} {reaction.count > 1 && reaction.count}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {timestamp && (
+          <div className={`flex items-center text-[10px] mt-1 ${isMe ? 'justify-end ml-1' : 'justify-start mr-1'} text-gray-500`}>
+            {isMe && (
+              <span className={`mr-1 flex items-center ${isRead ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
+                {isRead ? 
+                  <>
+                    <span className="read-status mr-0.5">譌｢隱ｭ</span>
+                    <CheckCheck size={10} className="mr-0.5" />
+                  </> : 
+                  <>
+                    <span className="read-status mr-0.5">譛ｪ隱ｭ</span>
+                    <Check size={10} className="mr-0.5" />
+                  </>
+                }
+              </span>
+            )}
+            <span>{timestamp}</span>
+          </div>
+        )}
+
+        {/* 髟ｷ謚ｼ縺励Γ繝九Η繝ｼ - LINE鬚ｨ縺ｮ繧｢繧ｯ繧ｷ繝ｧ繝ｳ繝｡繝九Η繝ｼ */}
+        <AnimatePresence>
+          {isLongPressed && (
+            <motion.div 
+              className={`absolute ${isMe ? 'right-0 -translate-x-1/4' : 'left-0 translate-x-1/4'} -top-12 z-50 bg-white rounded-xl shadow-lg py-1 px-1 flex items-center space-x-1 border border-gray-200`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => setShowReactionPicker(true)}
+                aria-label="Add reaction"
+              >
+                <SmilePlus size={20} className="text-gray-600" />
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={handleReply}
+                aria-label="Reply"
+              >
+                <Reply size={20} className="text-gray-600" />
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => navigator.clipboard.writeText(content)}
+                aria-label="Copy"
+              >
+                <Copy size={20} className="text-gray-600" />
+              </button>
+              {isMe && !isDeleted && (
+                <button 
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  onClick={() => {
+                    setShowDeleteConfirm(true);
+                    setIsLongPressed(false);
+                  }}
+                  aria-label="Delete"
+                >
+                  <Trash2 size={20} className="text-gray-600" />
+                </button>
+              )}
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => setIsLongPressed(false)}
+                aria-label="Close"
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </motion.div>
+          )}
+
+          {/* 繝ｪ繧｢繧ｯ繧ｷ繝ｧ繝ｳ驕ｸ謚槭Γ繝九Η繝ｼ */}
+          {showReactionPicker && (
+            <motion.div 
+              className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full z-50 bg-white rounded-xl shadow-lg p-2 flex items-center space-x-2 border border-gray-200"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => handleReactionAdd('笶､��')}
+              >
+                <Heart size={20} fill="#ff3b30" className="text-red-500" />
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => handleReactionAdd('�総')}
+              >
+                <ThumbsUp size={20} fill="#007aff" className="text-blue-500" />
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('��')}
+              >
+                ��
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('�舒')}
+              >
+                �舒
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('�个')}
+              >
+                �个
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('�剌')}
+              >
+                �剌
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('�聡')}
+              >
+                �聡
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-xl"
+                onClick={() => handleReactionAdd('�櫨')}
+              >
+                �櫨
+              </button>
+              <button 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => setShowReactionPicker(false)}
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      {/* 繝｡繝�そ繝ｼ繧ｸ蜿悶ｊ豸医＠遒ｺ隱阪Δ繝ｼ繝繝ｫ */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleCancelDelete}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl w-[90%] max-w-sm overflow-hidden shadow-lg"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5">
+                <h3 className="text-lg font-medium text-center mb-2">繝｡繝�そ繝ｼ繧ｸ縺ｮ蜿悶ｊ豸医＠</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 text-center mb-5">
+                  縺薙�繝｡繝�そ繝ｼ繧ｸ繧貞叙繧頑ｶ医＠縺ｾ縺吶°��<br/>
+                  <span className="text-xs text-gray-500">窶ｻ逶ｸ謇九↓縺ｯ縲後Γ繝�そ繝ｼ繧ｸ縺悟叙繧頑ｶ医＆繧後∪縺励◆縲阪→陦ｨ遉ｺ縺輔ｌ縺ｾ縺�</span>
+                </p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    onClick={handleDelete}
+                    className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white font-medium rounded-full transition-colors"
+                  >
+                    蜿悶ｊ豸医☆
+                  </button>
+                  <button
+                    onClick={handleCancelDelete}
+                    className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium rounded-full transition-colors"
+                  >
+                    繧ｭ繝｣繝ｳ繧ｻ繝ｫ
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+export default ChatMessage;

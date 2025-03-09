@@ -90,7 +90,7 @@ export default function ProfileCard({
           
           {/* 認証バッジ */}
           {profile.isVerified && (
-            <div className="absolute top-4 right-4 bg-blue-500 text-white p-1 rounded-full">
+            <div className="absolute top-4 right-4 bg-teal-500 text-white p-1 rounded-full">
               <Shield size={16} />
             </div>
           )}
@@ -176,14 +176,14 @@ export default function ProfileCard({
           
           {onSuperLike && (
             <motion.button
-              className="w-12 h-12 bg-blue-500 shadow-md rounded-full flex items-center justify-center text-white relative"
+              className="w-12 h-12 bg-teal-500 shadow-md rounded-full flex items-center justify-center text-white relative"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={onSuperLike}
             >
               <Star size={24} />
               {costSuperLike > 0 && (
-                <div className="absolute -bottom-2 -right-2 bg-white text-blue-500 text-xs px-1 py-0.5 rounded-full border border-blue-200 font-medium">
+                <div className="absolute -bottom-2 -right-2 bg-white text-teal-500 text-xs px-1 py-0.5 rounded-full border border-teal-200 font-medium">
                   {costSuperLike}p
                 </div>
               )}

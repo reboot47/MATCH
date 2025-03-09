@@ -32,7 +32,9 @@ export default function UserCard({ user, onLike, onDislike }: UserCardProps) {
   const [offsetX, setOffsetX] = useState(0);
   const [direction, setDirection] = useState<"left" | "right" | null>(null);
   
-  const photos = user.photos.length > 0 ? user.photos : [{ id: "placeholder", url: "/images/placeholder.png", isProfile: true }];
+  const photos = Array.isArray(user?.photos) && user.photos.length > 0 
+    ? user.photos 
+    : [{ id: "placeholder", url: "/images/placeholder.png", isProfile: true }];
   
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if ("touches" in e) {

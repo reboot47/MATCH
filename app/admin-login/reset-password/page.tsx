@@ -39,13 +39,13 @@ export default function AdminResetPasswordPage() {
       <div className="w-full max-w-md mx-auto">
         <div className="bg-white p-8 rounded-2xl shadow-lg">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-600 mb-2">LINEBUZZ</h1>
+            <h1 className="text-3xl font-bold text-teal-600 mb-2">LINEBUZZ</h1>
             <p className="text-gray-600">管理者パスワードのリセット</p>
           </div>
 
           {!submitted ? (
             <>
-              <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-6">
+              <div className="bg-teal-50 text-teal-700 p-4 rounded-lg mb-6">
                 <p>管理者アカウントに登録されているメールアドレスを入力してください。パスワードリセット用のリンクをお送りします。</p>
               </div>
 
@@ -56,7 +56,7 @@ export default function AdminResetPasswordPage() {
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <HiOutlineMail className="h-5 w-5 text-blue-500" />
+                      <HiOutlineMail className="h-5 w-5 text-teal-500" />
                     </div>
                     <input
                       id="email"
@@ -66,7 +66,7 @@ export default function AdminResetPasswordPage() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
                       placeholder="example@linebuzz.jp"
                     />
                   </div>
@@ -76,7 +76,7 @@ export default function AdminResetPasswordPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50"
+                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition disabled:opacity-50"
                   >
                     {loading ? (
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -104,7 +104,7 @@ export default function AdminResetPasswordPage() {
           <div className="mt-6 text-center">
             <Link 
               href="/admin-login" 
-              className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500"
+              className="inline-flex items-center text-sm font-medium text-teal-600 hover:text-teal-500"
             >
               <HiArrowLeft className="mr-2 h-4 w-4" />
               ログイン画面に戻る

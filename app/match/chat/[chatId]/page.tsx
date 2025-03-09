@@ -3,8 +3,8 @@
 import React, { useState, use, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatHeader, ChatMessage } from '@/components/chat';
-import { ChatInput } from '@/app/components/chat';
-import { AppointmentModal } from '@/app/components/chat';
+import MessageInput from '@/app/components/chat/MessageInput';
+import AppointmentModal from '@/app/components/chat/AppointmentModal';
 import { motion } from 'framer-motion';
 import { useUser } from '../../../../components/UserContext';
 import toast from 'react-hot-toast';
@@ -864,7 +864,7 @@ export default function ChatDetail({ params }: ChatParams) {
           </div>
         </div>
         
-        <ChatInput 
+        <MessageInput 
           onSendMessage={handleSendMessage}
           onPointsUpdated={handlePointsUpdated}
           disabled={currentPoints < requiredPoints}
@@ -872,6 +872,8 @@ export default function ChatDetail({ params }: ChatParams) {
           currentPoints={currentPoints}
           requiredPoints={requiredPoints}
           gender={'male'}
+          onTypingStart={() => setIsTyping(true)}
+          onTypingEnd={() => setIsTyping(false)}
         />
         
         {/* 入力中表示 - LINE風タイピングインジケーター */}

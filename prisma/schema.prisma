@@ -19,7 +19,17 @@ model User {
   gender           String?
   location         String?
   occupation       String?
+  company          String?
+  education        String?
+  height           Int?
+  drinking         String?
+  smoking          String?
+  children         Int?
   interests        String[]
+  personalityType  String?
+  personalityTraits Json?
+  personalityTestCompleted Boolean @default(false)
+  appealProfile    Json?          // アピールプロフィール情報
   role             String         @default("USER")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -37,6 +47,7 @@ model User {
   matches          Match[]        @relation("UserMatches")
   reportsSent      Report[]       @relation("ReportFromUser")
   reportsReceived  Report[]       @relation("ReportToUser")
+  privacy          UserPrivacy?   @relation("UserToPrivacy")
 }
 
 model Account {
@@ -265,4 +276,17 @@ model AutoResponseRule {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   templates        AutoResponseTemplate[] @relation("TemplateToRule")
+}
+
+model UserPrivacy {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  profileVisibility  String   @default("matches") // everyone, matches, verified
+  messagingPreference String  @default("matches") // everyone, matches, verified
+  locationSharing    String   @default("city")    // precise, city, region, none
+  activityVisibility String   @default("matches") // everyone, matches, none
+  dataUsage          String   @default("personalized") // personalized, limited, minimal
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation("UserToPrivacy", fields: [userId], references: [id], onDelete: Cascade)
 }

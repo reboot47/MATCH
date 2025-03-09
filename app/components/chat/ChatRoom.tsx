@@ -2,16 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { HiOutlineArrowLeft, HiOutlineDotsVertical, HiOutlinePhone, HiOutlineVideoCamera } from 'react-icons/hi';
+import { IoMdWallet } from 'react-icons/io';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Conversation, Message, Reaction, MessageStatus } from '@/app/types/chat';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import PointSystem from './PointSystem';
 
 interface ChatRoomProps {
   conversation: Conversation;
   messages: Message[];
   currentUserId: string;
+  userGender?: 'male' | 'female';
+  userPoints?: number;
   onBackClick?: () => void;
   onSendMessage: (conversationId: string, content: string, attachments: any[]) => void;
   onReaction: (messageId: string, reaction: string) => void;
@@ -20,13 +24,18 @@ interface ChatRoomProps {
   onTypingEnd?: () => void;
   onVideoCallStart?: () => void;
   onVoiceCallStart?: () => void;
+  onPurchasePoints?: () => void;
+  onPointsUpdated?: (newPoints: number) => void;
   typingUsers?: string[];
+  requiredPointsPerMessage?: number;
 }
 
 export default function ChatRoom({
   conversation,
   messages,
   currentUserId,
+  userGender = 'male',
+  userPoints = 0,
   onBackClick,
   onSendMessage,
   onReaction,
@@ -35,11 +44,16 @@ export default function ChatRoom({
   onTypingEnd,
   onVideoCallStart,
   onVoiceCallStart,
-  typingUsers = []
+  onPurchasePoints,
+  onPointsUpdated,
+  typingUsers = [],
+  requiredPointsPerMessage = 5
 }: ChatRoomProps) {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const [currentPoints, setCurrentPoints] = useState<number>(userPoints);
+  const [lastPointTransaction, setLastPointTransaction] = useState<{amount: number; type: 'spent' | 'earned'; timestamp: Date;} | undefined>();
   
   // 会話相手またはグループの名前を取得
   const getConversationName = () => {
@@ -73,6 +87,24 @@ export default function ChatRoom({
   const handleSendMessage = (content: string, attachments: any[]) => {
     onSendMessage(conversation.id, content, attachments);
     setReplyToMessage(null); // 返信をリセット
+  };
+  
+  // ポイント更新ハンドラー
+  const handlePointsUpdated = (newPoints: number) => {
+    const pointDiff = Math.abs(newPoints - currentPoints);
+    const transactionType = newPoints < currentPoints ? 'spent' : 'earned';
+    
+    setCurrentPoints(newPoints);
+    setLastPointTransaction({
+      amount: pointDiff,
+      type: transactionType,
+      timestamp: new Date()
+    });
+    
+    // 親コンポーネントに通知
+    if (onPointsUpdated) {
+      onPointsUpdated(newPoints);
+    }
   };
   
   // リアクション追加ハンドラー
@@ -194,8 +226,30 @@ export default function ChatRoom({
   
   const messageGroups = groupMessagesByDate();
 
+  // ポイント表示
+  const renderPointDisplay = () => {
+    if (!userGender) return null;
+    
+    return (
+      <div className="flex items-center px-3 py-1 bg-gray-50 border-b border-gray-200 text-sm">
+        <IoMdWallet className="text-teal-500 mr-1" />
+        <span className="text-gray-700 font-medium">
+          {currentPoints} <span className="text-xs font-normal">ポイント</span>
+        </span>
+        {userGender === 'male' && (
+          <button 
+            onClick={onPurchasePoints}
+            className="ml-auto text-xs bg-teal-500 hover:bg-teal-600 text-white px-2 py-1 rounded transition"
+          >
+            チャージ
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
       {/* ヘッダー */}
       <div className="flex items-center p-3 border-b border-gray-200">
         <button onClick={onBackClick} className="p-2 mr-2 text-gray-600 hover:bg-gray-100 rounded-full">
@@ -296,12 +350,38 @@ export default function ChatRoom({
       {/* 入力エリア */}
       <div className="border-t border-gray-200">
         {renderReplyBanner()}
+        
+        {/* ポイントシステム */}
+        <PointSystem 
+          gender={userGender}
+          currentPoints={currentPoints}
+          requiredPoints={requiredPointsPerMessage}
+          onPurchasePoints={onPurchasePoints}
+          showPointsUsage={true}
+          lastPointTransaction={lastPointTransaction}
+        />
+        
         <MessageInput
           onSendMessage={handleSendMessage}
           onTypingStart={onTypingStart}
           onTypingEnd={onTypingEnd}
           placeholder="メッセージを入力..."
+          gender={userGender}
+          currentPoints={currentPoints}
+          requiredPoints={requiredPointsPerMessage}
+          onPointsUpdated={handlePointsUpdated}
         />
+      </div>
+      
+      {/* フローティングの戻るボタン - モバイルユーザー向け */}
+      <div className="md:hidden fixed left-4 bottom-24 z-50">
+        <button 
+          onClick={onBackClick} 
+          className="bg-white p-3 rounded-full shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          aria-label="メッセージ一覧に戻る"
+        >
+          <HiOutlineArrowLeft className="w-6 h-6 text-primary-500" />
+        </button>
       </div>
     </div>
   );

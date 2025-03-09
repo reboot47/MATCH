@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { FcGoogle } from "react-icons/fc";
 import { HiOutlineMail, HiOutlineUser, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from "react-icons/hi";
+import { FaMars, FaVenus } from "react-icons/fa";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,12 +21,19 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [gender, setGender] = useState<'男性' | '女性' | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (step < 3) {
+    if (step < 4) {
       setStep(step + 1);
+      return;
+    }
+    
+    // 性別が選択されていない場合はエラー
+    if (!gender) {
+      setError("性別を選択してください");
       return;
     }
     
@@ -39,26 +48,23 @@ export default function RegisterPage() {
     }
 
     try {
-      // APIエンドポイントは後で実装
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // 注: APIエンドポイントは後で実装されるため、一時的に直接成功フローに進みます
+      console.log("登録情報：", { name, email, password, gender });
+      
+      // 2秒間のディレイを入れて処理中の表示を見せる
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // テスト用: ユーザーデータをローカルストレージに保存
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('linebuzz_temp_user', JSON.stringify({
           name,
           email,
-          password,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "登録に失敗しました");
+          registeredAt: new Date().toISOString()
+        }));
       }
 
-      // 登録成功後、ログインページへリダイレクト
-      router.push("/login?registered=true");
+      // 登録フローをリファクタリングしたため、ここでは性別選択ページにリダイレクト
+      router.push("/gender-selection");
     } catch (error: any) {
       setError(error.message || "登録中にエラーが発生しました。後でもう一度お試しください。");
       setLoading(false);
@@ -80,13 +86,19 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary-300 mb-2">LINEBUZZ</h1>
           <p className="text-gray-600">
-            {step === 1 ? "基本情報を入力してください" : step === 2 ? "あなたについて教えてください" : "安全なパスワードを設定してください"}
+            {step === 1 
+              ? "基本情報を入力してください" 
+              : step === 2 
+              ? "あなたについて教えてください" 
+              : step === 3 
+              ? "安全なパスワードを設定してください"
+              : "最後に性別を選択してください"}
           </p>
         </div>
 
         {/* ステップインジケーター */}
         <div className="flex justify-between items-center mb-8">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center">
               <div 
                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
@@ -102,18 +114,18 @@ export default function RegisterPage() {
                   i <= step ? "text-primary-300" : "text-gray-400"
                 }`}
               >
-                {i === 1 ? "基本" : i === 2 ? "詳細" : "設定"}
+                {i === 1 ? "基本" : i === 2 ? "詳細" : i === 3 ? "設定" : "性別"}
               </span>
             </div>
           ))}
           
           {/* 繋ぐライン */}
-          <div className="absolute left-1/2 top-40 transform -translate-x-1/2 w-full max-w-[250px] z-0">
+          <div className="absolute left-1/2 top-40 transform -translate-x-1/2 w-full max-w-[300px] z-0">
             <div className="relative h-[2px] bg-gray-300">
               <motion.div 
                 className="absolute h-full bg-primary-300"
                 initial={{ width: "0%" }}
-                animate={{ width: `${(step - 1) * 50}%` }}
+                animate={{ width: `${(step - 1) * 33.33}%` }}
                 transition={{ duration: 0.3 }}
               />
             </div>
@@ -265,6 +277,70 @@ export default function RegisterPage() {
                 </div>
               </motion.div>
             )}
+            
+            {step === 4 && (
+              <motion.div
+                key="step4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h3 className="text-center font-medium text-gray-700 mb-6">
+                    あなたの性別を選択してください
+                  </h3>
+                  
+                  <div className="flex justify-center space-x-6">
+                    <motion.div
+                      className={`relative cursor-pointer w-36 flex flex-col items-center p-5 rounded-xl border-2 ${gender === '男性' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setGender('男性')}
+                    >
+                      <div className="w-20 h-20 flex items-center justify-center bg-blue-100 rounded-full mb-4">
+                        <FaMars className="text-blue-500 text-4xl" />
+                      </div>
+                      <span className="font-medium text-gray-800">男性</span>
+                      {gender === '男性' && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-4 h-4 text-white">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </motion.div>
+                    
+                    <motion.div
+                      className={`relative cursor-pointer w-36 flex flex-col items-center p-5 rounded-xl border-2 ${gender === '女性' ? 'border-pink-500 bg-pink-50' : 'border-gray-200'}`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setGender('女性')}
+                    >
+                      <div className="w-20 h-20 flex items-center justify-center bg-pink-100 rounded-full mb-4">
+                        <FaVenus className="text-pink-500 text-4xl" />
+                      </div>
+                      <span className="font-medium text-gray-800">女性</span>
+                      {gender === '女性' && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-4 h-4 text-white">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </motion.div>
+                  </div>
+
+                  <div className="mt-6 text-center">
+                    <p className="text-xs text-gray-500">
+                      性別によって機能や課金体系が異なります。正確に選択してください。<br />
+                      この選択は後から変更できません。
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
 
           <div className="flex justify-between items-center pt-6">
@@ -285,7 +361,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="py-3 px-6 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-primary-300 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition ios-btn"
             >
-              {loading ? "処理中..." : step < 3 ? "次へ" : "登録する"}
+              {loading ? "処理中..." : step < 4 ? "次へ" : "登録する"}
             </button>
           </div>
         </form>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import LazyImage from "@/app/components/LazyImage";
-import BottomNavigation from "@/components/BottomNavigation";
+import BottomNavigation from "@/app/components/BottomNavigation";
 import { HiOutlineSearch, HiOutlineBell, HiOutlineChat, HiOutlineHeart } from "react-icons/hi";
 
 // ダミーユーザーデータ（後で実際のAPIに置き換え）

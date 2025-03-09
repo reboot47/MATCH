@@ -1,0 +1,591 @@
+"use client";
+
+import { useState, useRef, ChangeEvent, KeyboardEvent } from 'react';
+import { HiPaperClip, HiPhotograph, HiLocationMarker, HiVideoCamera, HiEmojiHappy } from 'react-icons/hi';
+import { RiSendPlaneFill } from 'react-icons/ri';
+import { IoClose } from 'react-icons/io5';
+import { MdWarning } from 'react-icons/md';
+import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ImageAttachment, VideoAttachment, LocationAttachment, UrlAttachment } from '@/app/types/chat';
+import toast from 'react-hot-toast';
+
+interface MessageInputProps {
+  onSendMessage: (text: string, attachments: any[]) => void;
+  onTypingStart?: () => void;
+  onTypingEnd?: () => void;
+  disabled?: boolean;
+  placeholder?: string;
+  gender?: 'male' | 'female';
+  currentPoints?: number;
+  requiredPoints?: number;
+  onPointsUpdated?: (points: number) => void;
+}
+
+export default function MessageInput({
+  onSendMessage,
+  onTypingStart,
+  onTypingEnd,
+  disabled = false,
+  placeholder = 'メッセージを入力...',
+  gender = 'male',
+  currentPoints = 0,
+  requiredPoints = 5,
+  onPointsUpdated
+}: MessageInputProps) {
+  const [text, setText] = useState('');
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // テキスト入力ハンドラー
+  const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    
+    // 入力中イベント発火
+    if (e.target.value && !text) {
+      onTypingStart?.();
+    } else if (!e.target.value && text) {
+      onTypingEnd?.();
+    }
+  };
+
+  // Enterキーでの送信
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // 画像添付ハンドラー
+  const handleImageAttachment = (e: ChangeEvent<HTMLInputElement>) => {
+    // ファイル選択メニューを自動的に閉じる
+    setIsAttachmentMenuOpen(false);
+    
+    if (e.target.files && e.target.files.length > 0) {
+      // 既存の画像添付ファイル数を取得
+      const existingImageCount = attachments.filter(a => a.type === 'image').length;
+      
+      // 最大5枚までの制限（LINE仕様に準拠）
+      const maxAdditionalImages = 5 - existingImageCount;
+      
+      if (maxAdditionalImages <= 0) {
+        toast.error('画像は最大5枚までアップロードできます');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      
+      // 追加できる画像数に制限
+      const filesToAdd = Array.from(e.target.files).slice(0, maxAdditionalImages);
+      
+      const newAttachments = filesToAdd.map(file => {
+        const url = URL.createObjectURL(file);
+        const attachment: ImageAttachment = {
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'image',
+          url,
+          createdAt: new Date()
+        };
+        return attachment;
+      });
+      
+      setAttachments([...attachments, ...newAttachments]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      // 制限に達した場合は通知
+      if (existingImageCount + filesToAdd.length >= 5) {
+        toast.success('画像の最大数（5枚）に達しました', {
+          icon: '📷',
+          style: {
+            background: '#4B5563',
+            color: '#FFFFFF'
+          }
+        });
+      }
+    }
+  };
+
+  // 動画添付ハンドラー
+  const handleVideoAttachment = (e: ChangeEvent<HTMLInputElement>) => {
+    // ファイル選択メニューを自動的に閉じる
+    setIsAttachmentMenuOpen(false);
+    
+    if (e.target.files && e.target.files.length > 0) {
+      // LINEでは動画ファイルを一度に1つのみ送信可能
+      // 既存の動画がある場合はエラー通知
+      if (attachments.some(a => a.type === 'video')) {
+        toast.error('動画は一度に1つまで添付できます');
+        if (videoInputRef.current) videoInputRef.current.value = '';
+        return;
+      }
+      
+      const file = e.target.files[0];
+      const url = URL.createObjectURL(file);
+      
+      // 動画のメタデータを取得するプロセス
+      // サムネイル生成用に仮の動画要素を作成
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.src = url;
+      
+      // データのロード完了時に実行
+      video.onloadedmetadata = () => {
+        // サムネイル生成用の仮キャンバス
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // 動画の中間付近のフレームをサムネイルとして使用
+        video.currentTime = Math.min(1, video.duration / 2);
+      };
+      
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          // 画像をURL化
+          try {
+            const thumbnailUrl = canvas.toDataURL('image/jpeg');
+            
+            const attachment: VideoAttachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              type: 'video',
+              url,
+              thumbnailUrl,
+              duration: video.duration,
+              createdAt: new Date()
+            };
+            
+            setAttachments([...attachments, attachment]);
+            toast.success('動画を添付しました');
+          } catch (e) {
+            // サムネイル生成失敗時はサムネイルなしで添付
+            const attachment: VideoAttachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              type: 'video',
+              url,
+              createdAt: new Date()
+            };
+            
+            setAttachments([...attachments, attachment]);
+            toast.success('動画を添付しました');
+          }
+        }
+      };
+      
+      // エラー発生時はサムネイルなしで添付
+      video.onerror = () => {
+        const attachment: VideoAttachment = {
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'video',
+          url,
+          createdAt: new Date()
+        };
+        
+        setAttachments([...attachments, attachment]);
+        toast.success('動画を添付しました');
+      };
+      
+      if (videoInputRef.current) videoInputRef.current.value = '';
+    }
+  };
+
+  // 位置情報添付ハンドラー
+  const handleLocationAttachment = () => {
+    // ファイル選択メニューを自動的に閉じる
+    setIsAttachmentMenuOpen(false);
+    
+    // 位置情報取得中のローディング表示
+    toast.loading('位置情報を取得中...', { id: 'location-toast' });
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            // 緯度経度から住所情報を取得する
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            // 逆ジオコーディングAPIを使用して住所を取得
+            // 実験用にローカルデータを返す関数を使用
+            const address = await getAddressFromCoordinates(lat, lng);
+            
+            // 地図の静的画像を生成
+            const mapPreviewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&markers=color:red%7C${lat},${lng}&key=YOUR_API_KEY`;
+            
+            // スマートフォン用の地図URL
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            
+            const locationAttachment: LocationAttachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              type: 'location',
+              latitude: lat,
+              longitude: lng,
+              name: '現在地',
+              address: address,
+              url: mapsUrl,
+              previewUrl: mapPreviewUrl,
+              createdAt: new Date()
+            };
+            
+            setAttachments([...attachments, locationAttachment]);
+            toast.dismiss('location-toast');
+            toast.success('位置情報を添付しました');
+          } catch (error) {
+            console.error('位置情報の処理中にエラーが発生しました:', error);
+            toast.dismiss('location-toast');
+            toast.error('位置情報の処理に失敗しました');
+          }
+        },
+        (error) => {
+          console.error('位置情報の取得に失敗しました:', error);
+          toast.dismiss('location-toast');
+          toast.error('位置情報の取得に失敗しました。位置情報の許可を確認してください。');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      toast.dismiss('location-toast');
+      toast.error('お使いのブラウザは位置情報をサポートしていません。');
+    }
+  };
+  
+  // 座標から住所を取得する関数 (実験用に簡略化)
+  const getAddressFromCoordinates = async (latitude: number, longitude: number): Promise<string> => {
+    // 実際のアプリでは、ここでGoogle Maps Geocoding APIなどを呼び出す
+    // デモ用にダミーデータを返す
+    return '東京都渋谷区渋谷1-2-3';
+  };
+
+  // URL検出
+  const detectUrlsInText = (text: string): UrlAttachment[] => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const matches = text.match(urlRegex);
+    
+    if (!matches) return [];
+    
+    return matches.map(url => ({
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'url',
+      url,
+      createdAt: new Date(),
+    }));
+  };
+
+  // 添付ファイル削除
+  const removeAttachment = (id: string) => {
+    setAttachments(attachments.filter(a => a.id !== id));
+  };
+
+  // メッセージ送信
+  const handleSendMessage = () => {
+    console.log('送信ボタンが押されました');
+    console.log('テキスト:', text);
+    console.log('添付ファイル:', attachments);
+    
+    // ディセーブル確認
+    if ((!text && attachments.length === 0) || disabled) {
+      console.log('送信条件を満たしていません:', {
+        text: text.length > 0,
+        attachments: attachments.length > 0,
+        disabled: disabled
+      });
+      return;
+    }
+    
+    // テキストからURL検出
+    const urlAttachments = detectUrlsInText(text);
+    const allAttachments = [...attachments];
+    
+    // URLが既に添付されていない場合のみ追加
+    for (const urlAttachment of urlAttachments) {
+      if (!allAttachments.some(a => a.type === 'url' && a.url === urlAttachment.url)) {
+        allAttachments.push(urlAttachment);
+      }
+    }
+    
+    console.log('全添付ファイル:', allAttachments);
+    
+    // 男性ユーザーの場合、ポイントをチェック
+    if (gender === 'male') {
+      // 写真や動画の添付がある場合は追加ポイントが必要
+      const mediaAttachmentCount = allAttachments.filter(
+        att => att.type === 'image' || att.type === 'video'
+      ).length;
+      
+      const totalRequiredPoints = requiredPoints + (mediaAttachmentCount * 3); // メディアごとに追加3ポイント
+      
+      if (currentPoints < totalRequiredPoints) {
+        toast.error(`ポイントが不足しています。${totalRequiredPoints}ポイント必要です。`);
+        return;
+      }
+      
+      // ポイント消費
+      if (onPointsUpdated) {
+        onPointsUpdated(currentPoints - totalRequiredPoints);
+        toast.success(`${totalRequiredPoints}ポイントを消費しました。`);
+      }
+    } else if (gender === 'female' && onPointsUpdated) {
+      // 女性の場合、ポイント獲得
+      const earnedPoints = requiredPoints;
+      onPointsUpdated(currentPoints + earnedPoints);
+      toast.success(`${earnedPoints}ポイントを獲得しました！`, {
+        icon: '🎁',
+        style: {
+          background: '#10B981',
+          color: '#FFFFFF'
+        }
+      });
+    }
+    
+    setSending(true);
+    
+    try {
+      console.log('送信関数を呼び出します', onSendMessage);
+      onSendMessage(text, allAttachments);
+      console.log('送信関数の呼び出しが成功しました');
+    } catch (error) {
+      console.error('送信関数の呼び出しに失敗しました:', error);
+      toast.error('メッセージの送信に失敗しました');
+    }
+    setText('');
+    setAttachments([]);
+    onTypingEnd?.();
+    
+    setTimeout(() => {
+      setSending(false);
+      console.log('送信完了');
+    }, 1000);
+  };
+
+  // 写真・動画添付時の追加ポイント計算
+  const calculateAdditionalPointsForMedia = () => {
+    if (gender !== 'male') return 0;
+    
+    const mediaCount = attachments.filter(att => att.type === 'image' || att.type === 'video').length;
+    return mediaCount * 3; // メディア添付1つにつき3ポイント
+  };
+
+  // 送信に必要な合計ポイント
+  const totalPointsRequired = gender === 'male' ? requiredPoints + calculateAdditionalPointsForMedia() : 0;
+  
+  // ポイント不足かどうか
+  const isPointsInsufficient = gender === 'male' && totalPointsRequired > currentPoints;
+
+  return (
+    <div className="border-t border-gray-200 bg-white p-3">
+      {/* 添付ファイルプレビュー */}
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {/* 画像が複数ある場合の一括削除ボタン */}
+          {attachments.filter(a => a.type === 'image').length > 1 && (
+            <button
+              onClick={() => setAttachments(attachments.filter(a => a.type !== 'image'))}
+              className="text-xs text-red-500 hover:text-red-700 ml-1 mb-2 flex items-center bg-gray-100 px-2 py-1 rounded-full"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              すべての画像を削除
+            </button>
+          )}
+          
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="relative group">
+              {attachment.type === 'image' && (
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300">
+                  <Image 
+                    src={attachment.url} 
+                    alt="添付画像" 
+                    width={80} 
+                    height={80} 
+                    className="object-cover w-full h-full"
+                  />
+                </div>
+              )}
+              
+              {attachment.type === 'video' && (
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300 bg-black relative">
+                  {/* サムネイルがあれば表示 */}
+                  {attachment.thumbnailUrl ? (
+                    <Image 
+                      src={attachment.thumbnailUrl} 
+                      alt="動画サムネイル" 
+                      width={80} 
+                      height={80} 
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <HiVideoCamera className="text-white w-8 h-8" />
+                    </div>
+                  )}
+                  {/* 動画再生アイコン */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 bg-white bg-opacity-70 rounded-full flex items-center justify-center">
+                      <div className="w-0 h-0 border-t-transparent border-t-8 border-b-transparent border-b-8 border-l-white border-l-12 ml-1"></div>
+                    </div>
+                  </div>
+                  {/* 動画の長さ表示 */}
+                  {attachment.duration && (
+                    <div className="absolute bottom-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5">
+                      {Math.floor(attachment.duration / 60)}:{Math.floor(attachment.duration % 60).toString().padStart(2, '0')}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {attachment.type === 'location' && (
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300 relative">
+                  {/* 地図プレビュー画像 */}
+                  {attachment.previewUrl ? (
+                    <Image 
+                      src={attachment.previewUrl} 
+                      alt="地図" 
+                      width={80} 
+                      height={80} 
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                      <HiLocationMarker className="text-primary-500 w-8 h-8" />
+                    </div>
+                  )}
+                  {/* 地図ピンアイコン */}
+                  <div className="absolute top-1 left-1 bg-white rounded-full p-1 shadow-md">
+                    <HiLocationMarker className="text-red-500 w-4 h-4" />
+                  </div>
+                  {/* 位置情報ラベル */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-[#06c755] bg-opacity-90 text-white text-xs px-1 py-0.5 truncate text-center">
+                    現在地
+                  </div>
+                </div>
+              )}
+              
+              <button
+                className="absolute top-0 right-0 bg-gray-800 bg-opacity-70 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                onClick={() => removeAttachment(attachment.id)}
+              >
+                <IoClose className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <div className="flex items-end">
+        <div className="relative mr-2">
+          <button
+            className="text-gray-500 hover:text-primary-500 p-2 transition-colors"
+            onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
+          >
+            <HiPaperClip className="w-6 h-6" />
+          </button>
+          
+          {/* 添付メニュー */}
+          <AnimatePresence>
+            {isAttachmentMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-12 left-0 bg-white rounded-md shadow-lg p-1 w-48 z-10"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageAttachment}
+                />
+                <input
+                  type="file"
+                  ref={videoInputRef}
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleVideoAttachment}
+                />
+                
+                <button
+                  className={`flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm ${attachments.filter(a => a.type === 'image').length >= 5 ? 'cursor-not-allowed opacity-50' : ''}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={attachments.filter(a => a.type === 'image').length >= 5}
+                >
+                  <HiPhotograph className="w-5 h-5 mr-2 text-green-500" />
+                  <span>画像 {attachments.filter(a => a.type === 'image').length >= 5 ? '(上限到達)' : ''}</span>
+                </button>
+                
+                <button
+                  className="flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm"
+                  onClick={() => videoInputRef.current?.click()}
+                >
+                  <HiVideoCamera className="w-5 h-5 mr-2 text-red-500" />
+                  <span>動画</span>
+                </button>
+                
+                <button
+                  className="flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm"
+                  onClick={handleLocationAttachment}
+                >
+                  <HiLocationMarker className="w-5 h-5 mr-2 text-blue-500" />
+                  <span>位置情報</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        
+        <div className="flex-1 bg-gray-100 rounded-2xl flex items-end">
+          <textarea
+            className="flex-1 bg-transparent border-none resize-none p-3 outline-none text-sm max-h-32"
+            placeholder={placeholder}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            rows={1}
+            style={{ minHeight: '42px' }}
+          />
+          
+          <button
+            className="mx-2 text-gray-500 hover:text-primary-500 p-2 transition-colors"
+            onClick={() => setIsEmoticonPickerOpen(!isEmoticonPickerOpen)}
+          >
+            <HiEmojiHappy className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <button
+          className={`ml-2 p-2 rounded-full ${
+            (!text && attachments.length === 0) || disabled
+              ? 'bg-gray-200 text-gray-400'
+              : 'bg-[#06c755] text-white hover:bg-[#05b64b]'
+          } transition-colors`}
+          disabled={(!text && attachments.length === 0) || disabled}
+          onClick={handleSendMessage}
+          aria-label="メッセージを送信"
+        >
+          <RiSendPlaneFill className="w-5 h-5" />
+        </button>
+      </div>
+      
+      {/* 絵文字ピッカー - 実装は省略 */}
+      {isEmoticonPickerOpen && (
+        <div className="absolute bottom-16 right-4 z-10">
+          {/* 絵文字ピッカーをここに実装 */}
+          <div className="bg-white rounded-md shadow-lg p-4">
+            <p className="text-sm text-gray-500">絵文字ピッカー (実装予定)</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

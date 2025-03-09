@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXTAUTH_URL_INTERNAL: process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  },
   webpack: (config, { isServer }) => {
     // HTMLファイルのローダー設定
     config.module.rules.push({
@@ -52,22 +55,10 @@ const nextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002', 'localhost:3003']
-    },
+    }
   },
   // 静的エクスポートを無効にする
-  output: 'standalone',
-  // パスのエイリアスを設定
-  compiler: {
-    // Enables the JSX in .js files.
-    jsx: true,
-  },
-  // パスのエイリアスを設定
-  alias: {
-    '@components': './components',
-    '@public': './public',
-    '@styles': './styles',
-    '@utils': './utils',
-  },
+  output: 'standalone'
 };
 
 module.exports = nextConfig;

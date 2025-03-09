@@ -1,53 +1,111 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 import { FcGoogle } from "react-icons/fc";
 import { HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from "react-icons/hi";
+import AuthDebugger from "../components/debug/AuthDebugger";
 
-export default function LoginPage() {
+// useSearchParamsを使用するコンポーネントを分離
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDebugger, setShowDebugger] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(false);
+
+  useEffect(() => {
+    setIsDevMode(process.env.NODE_ENV === "development");
+    const debug = searchParams.get("debug") === "true";
+    setShowDebugger(debug && isDevMode);
+  }, [searchParams, isDevMode]);
+
+  useEffect(() => {
+    if (!isDevMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.shiftKey && e.key === "D") {
+        setShowDebugger(prev => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDevMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setDebugInfo(null);
 
     try {
+      console.log('ログイン試行開始:', { email });
+      
       const result = await signIn("credentials", {
         redirect: false,
         email,
         password,
       });
 
+      console.log('認証結果:', result);
+      
       if (result?.error) {
+        console.error('認証エラー:', result.error);
         setError("メールアドレスまたはパスワードが正しくありません");
+        setDebugInfo({
+          type: 'AUTH_ERROR',
+          error: result.error,
+          ok: result.ok,
+          status: result.status,
+          url: result.url
+        });
         setLoading(false);
         return;
       }
 
       // ログイン成功
-      router.push("/dashboard");
-    } catch (error) {
+      console.log('認証成功、リダイレクト開始');
+      router.push("/home");
+    } catch (error: any) {
+      console.error('ログイン例外発生:', error);
       setError("ログイン中にエラーが発生しました。後でもう一度お試しください。");
+      setDebugInfo({
+        type: 'EXCEPTION',
+        message: error.message,
+        stack: error.stack,
+      });
       setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    setDebugInfo(null);
     try {
-      await signIn("google", { callbackUrl: "/dashboard" });
-    } catch (error) {
+      console.log('Google認証開始');
+      // Google認証後、性別選択ページにリダイレクト
+      await signIn("google", { 
+        callbackUrl: "/gender-selection?provider=google" 
+      });
+    } catch (error: any) {
+      console.error('Googleログインエラー:', error);
       setError("Googleログイン中にエラーが発生しました。後でもう一度お試しください。");
+      setDebugInfo({
+        type: 'GOOGLE_AUTH_ERROR',
+        message: error.message,
+        stack: error.stack
+      });
       setLoading(false);
     }
   };
@@ -72,6 +130,11 @@ export default function LoginPage() {
             className="bg-error-50 text-error-300 p-3 rounded-lg mb-6 text-sm"
           >
             {error}
+            {debugInfo && process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 p-2 bg-gray-100 rounded text-xs font-mono overflow-auto">
+                <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -191,7 +254,32 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {isDevMode && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setShowDebugger(prev => !prev)}
+              className="text-xs text-gray-500 hover:text-gray-700 underline"
+            >
+              {showDebugger ? "デバッグ情報を隠す" : "デバッグ情報を表示"}
+            </button>
+            <div className="mt-2 text-xs text-gray-400">
+              (Alt+Shift+D でトグル)
+            </div>
+          </div>
+        )}
+        
+        {showDebugger && <AuthDebugger />}
       </motion.div>
     </div>
+  );
+}
+
+// メインページコンポーネント
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">読み込み中...</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

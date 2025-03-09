@@ -25,6 +25,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* チャットページでのフッター制御 */
+body.chat-page #bottom-navigation {
+  display: none !important;
+}
+
+body.chat-page .fixed.bottom-0.left-0.right-0:not(#chat-input-box) {
+  display: none !important;
+}
+
+/* チャット入力コンテナの表示制御 */
+#chat-input-box {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+  max-width: 480px !important;
+  margin: 0 auto !important;
+  background-color: white !important;
+  border-top: 1px solid #e5e7eb !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05) !important;
+}
+
+/* LINE風チャットスタイル調整 */
+.line-message-bubble {
+  max-width: 70%;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  position: relative;
+  word-break: break-word;
+}
+
 /* モバイル最適化スクロールバー */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

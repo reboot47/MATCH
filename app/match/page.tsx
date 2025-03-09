@@ -124,7 +124,7 @@ export default function HomePage() {
               <div className="font-semibold">{isGenderMale() ? '5ポイント' : '無料'}</div>
             </div>
             <div className="flex-1 bg-white bg-opacity-70 rounded-lg p-3">
-              <Star size={18} className="text-blue-500 mb-1" />
+              <Star size={18} className="text-teal-500 mb-1" />
               <div className="text-xs text-gray-600">スーパーいいね！</div>
               <div className="font-semibold">50ポイント</div>
             </div>
@@ -254,7 +254,7 @@ export default function HomePage() {
         {/* 会員ステータス */}
         {points?.subscription?.plan !== 'none' ? (
           <section>
-            <div className="bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl p-4 text-white">
+            <div className="bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl p-4 text-white">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center">

@@ -7,7 +7,8 @@ import {
   FaPhoneAlt,
   FaEnvelope,
   FaCamera,
-  FaLinkedin
+  FaLinkedin,
+  FaSpinner
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
@@ -23,7 +24,7 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
       id: 'email',
       title: 'メール認証',
       description: 'メールアドレスの所有権を確認します',
-      icon: <FaEnvelope className="text-blue-500" />,
+      icon: <FaEnvelope className="w-5 h-5 text-teal-500" />,
       verified: user?.emailVerified != null,
       verifiedDate: user?.emailVerified,
       action: '認証する'
@@ -32,7 +33,7 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
       id: 'photo',
       title: '写真認証',
       description: 'あなたの写真が本人であることを確認します',
-      icon: <FaCamera className="text-indigo-500" />,
+      icon: <FaCamera className="w-5 h-5 text-teal-500" />,
       verified: user?.photoVerified,
       verifiedDate: user?.photoVerifiedDate,
       action: '認証する'
@@ -41,7 +42,7 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
       id: 'phone',
       title: '電話番号認証',
       description: '電話番号の所有権を確認します',
-      icon: <FaPhoneAlt className="text-green-500" />,
+      icon: <FaPhoneAlt className="w-5 h-5 text-teal-500" />,
       verified: user?.phoneVerified,
       verifiedDate: user?.phoneVerifiedDate,
       action: '認証する'
@@ -50,7 +51,7 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
       id: 'id',
       title: '身分証明書認証',
       description: '身分証明書と本人の一致を確認します',
-      icon: <FaIdCard className="text-amber-500" />,
+      icon: <FaIdCard className="w-5 h-5 text-teal-500" />,
       verified: user?.idVerified,
       verifiedDate: user?.idVerifiedDate,
       action: '認証する',
@@ -60,7 +61,7 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
       id: 'linkedin',
       title: 'LinkedIn認証',
       description: 'LinkedInアカウントとの連携を確認します',
-      icon: <FaLinkedin className="text-blue-700" />,
+      icon: <FaLinkedin className="w-5 h-5 text-teal-500" />,
       verified: user?.linkedinVerified,
       verifiedDate: user?.linkedinVerifiedDate,
       action: '連携する',
@@ -87,57 +88,98 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
 
   // ユーザーの認証レベルを計算
   const calculateVerificationLevel = () => {
+    if (!Array.isArray(verifications) || verifications.length === 0) {
+      return 0; // 認証情報が無い場合は0を返す
+    }
     const verifiedCount = verifications.filter(v => v.verified).length;
     return Math.min(Math.round((verifiedCount / verifications.length) * 10), 10);
+  };
+
+  // カード用のアニメーション
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.5,
+        ease: "easeOut"
+      }
+    })
   };
 
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
       className="bg-white rounded-xl shadow-sm p-6"
     >
-      <h2 className="text-xl font-bold mb-6 flex items-center">
-        <FaUserCheck className="mr-2 text-blue-500" /> 
+      <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+        <FaUserCheck className="mr-3 text-teal-500 w-5 h-5" /> 
         認証センター
       </h2>
       
-      <div className="mb-8 bg-blue-50 rounded-lg p-4">
+      <div className="mb-8 bg-emerald-50 rounded-lg p-5 border border-emerald-100">
         <div className="flex items-center gap-4 mb-3">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-lg font-bold text-blue-600">Lv{calculateVerificationLevel()}</span>
+          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center shadow-sm">
+            <span className="text-lg font-bold text-teal-600">Lv{calculateVerificationLevel()}</span>
           </div>
           <div>
-            <h3 className="font-semibold">認証レベル {calculateVerificationLevel()}/10</h3>
+            <h3 className="font-semibold text-gray-800">認証レベル {calculateVerificationLevel()}/10</h3>
             <p className="text-sm text-gray-600">
               認証レベルが高いほど、マッチング率が上がります
             </p>
           </div>
         </div>
         
-        <div className="w-full bg-white rounded-full h-2.5">
-          <div 
-            className="h-2.5 rounded-full bg-blue-600" 
-            style={{ width: `${(calculateVerificationLevel() / 10) * 100}%` }}
-          ></div>
+        <div className="w-full bg-white rounded-full h-3 shadow-inner">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${(calculateVerificationLevel() / 10) * 100}%` }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="h-3 rounded-full bg-teal-500" 
+          ></motion.div>
         </div>
       </div>
       
       <div className="space-y-4">
-        {verifications.map(verification => (
-          <div 
+        {verifications.map((verification, index) => (
+          <motion.div 
             key={verification.id}
-            className={`border rounded-lg p-4 ${
-              verification.verified ? 'border-green-200 bg-green-50' : 'border-gray-200'
+            custom={index}
+            initial="hidden"
+            animate="visible"
+            variants={cardVariants}
+            className={`border rounded-lg p-5 transition-all ${
+              verification.verified 
+                ? 'border-green-200 bg-green-50' 
+                : 'border-gray-200 hover:border-teal-200 hover:bg-emerald-50'
             }`}
+            whileHover={{ 
+              scale: 1.02,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              transition: { duration: 0.2 }
+            }}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
               <div className="mt-1">{verification.icon}</div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold">{verification.title}</h3>
+                  <h3 className="font-semibold text-gray-800">{verification.title}</h3>
                   {verification.verified && (
-                    <FaCheckCircle className="text-green-500" />
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 260, 
+                        damping: 20 
+                      }}
+                    >
+                      <FaCheckCircle className="text-green-500" />
+                    </motion.div>
                   )}
                   {verification.premium && !verification.verified && (
                     <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
@@ -152,23 +194,22 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
                     認証済み: {formatDate(verification.verifiedDate)}
                   </p>
                 ) : (
-                  <button
+                  <motion.button
                     onClick={() => startVerification(verification.id)}
                     disabled={isVerifying !== null}
-                    className={`mt-3 px-4 py-1.5 text-sm rounded-md ${
+                    className={`mt-3 px-4 py-2 text-sm rounded-md flex items-center justify-center ${
                       verification.premium 
                         ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' 
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
                     } transition-colors ${
                       isVerifying ? 'opacity-70 cursor-not-allowed' : ''
                     }`}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                   >
                     {isVerifying === verification.id ? (
                       <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
+                        <FaSpinner className="animate-spin h-4 w-4" />
                         処理中...
                       </span>
                     ) : verification.premium ? (
@@ -176,13 +217,28 @@ export default function VerificationCenter({ user }: VerificationCenterProps) {
                     ) : (
                       verification.action
                     )}
-                  </button>
+                  </motion.button>
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
+
+      <motion.div 
+        className="mt-6 bg-emerald-50 rounded-md p-4 text-sm text-teal-800"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <h4 className="font-semibold mb-2">認証のメリット:</h4>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>より多くのマッチング機会を得られます</li>
+          <li>信頼性の高いユーザーとして表示されます</li>
+          <li>特定の機能やサービスへのアクセス権が与えられます</li>
+          <li>アカウントとプライバシーが強化されます</li>
+        </ul>
+      </motion.div>
     </motion.div>
   );
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { BsCalendar } from 'react-icons/bs';
 
 interface ChatHeaderProps {
   partnerName: string;
@@ -12,6 +13,7 @@ interface ChatHeaderProps {
   onInfoClick?: () => void;
   onCallClick?: () => void;
   onVideoClick?: () => void;
+  onAppointmentClick?: () => void;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -23,10 +25,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   onInfoClick,
   onCallClick,
   onVideoClick,
+  onAppointmentClick,
 }) => {
   return (
     <motion.header
-      className="flex items-center px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-10"
+      className="flex items-center px-4 py-3 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 max-w-md mx-auto z-50"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -83,6 +86,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       <div className="flex items-center space-x-1">
+        {onAppointmentClick && (
+          <button
+            onClick={onAppointmentClick}
+            className="p-2 text-teal-600 hover:text-teal-700 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 relative"
+            aria-label="約束"
+          >
+            <BsCalendar size={20} />
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">!</span>
+          </button>
+        )}
         {onCallClick && (
           <button
             onClick={onCallClick}

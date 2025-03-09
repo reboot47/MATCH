@@ -64,7 +64,7 @@ export default function AuthDebugPage() {
                 email: 'test@linebuzz.jp',
                 password: 'test123'
               })}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded"
+              className="bg-teal-600 hover:bg-teal-700 text-white py-2 px-6 rounded"
             >
               テストユーザーとしてログイン
             </button>
@@ -107,8 +107,8 @@ export default function AuthDebugPage() {
       )}
 
       <div className="mt-8 flex space-x-4">
-        <Link href="/" className="text-blue-600 hover:underline">ホームに戻る</Link>
-        <Link href="/profile" className="text-blue-600 hover:underline">プロフィールページへ</Link>
+        <Link href="/" className="text-teal-600 hover:underline">ホームに戻る</Link>
+        <Link href="/profile" className="text-teal-600 hover:underline">プロフィールページへ</Link>
       </div>
     </div>
   );

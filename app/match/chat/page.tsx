@@ -1,9 +1,15 @@
 'use client';
 
-import React from 'react';
-import { ChatList } from '@/components/chat';
+import React, { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+
+// ChatListをクライアントサイドでのみレンダリングするためにSSRをオフにする
+const ChatList = dynamic(
+  () => import('@/components/chat').then((mod) => mod.ChatList),
+  { ssr: false }
+);
 
 const mockChats = [
   {

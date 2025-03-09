@@ -117,6 +117,7 @@ export default function MediaGallery({
     
     if (files.length === 0) {
       console.log('No files to upload');
+      toast.error('アップロードするファイルを選択してください');
       return;
     }
     
@@ -126,18 +127,49 @@ export default function MediaGallery({
       return;
     }
     
-    // FormDataの作成
-    const formData = new FormData();
-    files.forEach((file, index) => {
-      console.log(`Adding file ${index} to FormData:`, file.name, file.type, file.size);
-      formData.append(`file${index}`, file);
-      formData.append(`type${index}`, file.type.startsWith('video/') ? 'video' : 'image');
-    });
+    // 有効なファイルをフィルタリング
+    const validFiles: { file: File; type: 'image' | 'video' }[] = [];
+    
+    for (const file of files) {
+      // ファイルタイプをチェック
+      if (file.type.startsWith('image/')) {
+        // 画像サイズをチェック (10MB以下)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`画像${file.name}のサイズが大きすぎます。10MB以下にしてください。`);
+          continue;
+        }
+        validFiles.push({ file, type: 'image' });
+      } else if (file.type.startsWith('video/')) {
+        // 動画サイズをチェック (50MB以下)
+        if (file.size > 50 * 1024 * 1024) {
+          toast.error(`動画${file.name}のサイズが大きすぎます。50MB以下にしてください。`);
+          continue;
+        }
+        validFiles.push({ file, type: 'video' });
+      } else {
+        toast.error(`${file.name}は対応していないファイル形式です。画像または動画をアップロードしてください。`);
+      }
+    }
+    
+    if (validFiles.length === 0) {
+      toast.error('アップロードできるファイルがありません');
+      return;
+    }
     
     try {
       setIsLoading(true);
-      setUploadProgress(10); // 初期進捗状況
-      console.log('Starting upload to API...');
+      setUploadProgress(5); // 初期進捗状況
+      
+      // FormDataの作成
+      const formData = new FormData();
+      validFiles.forEach(({ file, type }, index) => {
+        console.log(`Adding file ${index} to FormData:`, file.name, file.type, file.size);
+        formData.append(`file${index}`, file);
+        formData.append(`type${index}`, type);
+      });
+      
+      // アップロード中のメッセージ
+      const toastId = toast.loading(`${validFiles.length}件のメディアをアップロード中...`);
       
       // プログレスイベントの設定
       const uploadProgress = {
@@ -150,15 +182,6 @@ export default function MediaGallery({
         }
       };
       
-      // API呼び出し前にデバッグエンドポイントをチェック
-      try {
-        console.log('Checking Cloudinary configuration...');
-        const debugResponse = await axios.get('/api/profile/media/debug');
-        console.log('Cloudinary debug info:', debugResponse.data);
-      } catch (debugError) {
-        console.error('Cloudinaryデバッグエラー:', debugError);
-      }
-      
       // API呼び出し
       console.log('Calling API endpoint: /api/profile/media');
       const response = await axios.post('/api/profile/media', formData, uploadProgress);
@@ -167,24 +190,46 @@ export default function MediaGallery({
       if (response.data.success) {
         setUploadProgress(100);
         
+        // デバッグモードのチェック
+        if (response.data.debugMode) {
+          toast.success('デバッグモード: サンプルメディアを表示します', {
+            id: toastId
+          });
+          // サンプルのメディアデータを使用
+          const newItems = [...items, ...response.data.mediaItems];
+          setItems(newItems);
+          setUploadOpen(false);
+          return;
+        }
+        
         // アップロードされたアイテムを追加
         const newItems = [...items, ...response.data.mediaItems];
         setItems(newItems);
         setUploadOpen(false);
-        toast.success('メディアをアップロードしました');
+        toast.success(`${validFiles.length}件のメディアをアップロードしました`, {
+          id: toastId
+        });
+        
+        // 親コンポーネントに更新を通知
+        if (onUpdate) {
+          await onUpdate(newItems);
+        }
       } else {
         console.error('API returned error:', response.data.error);
-        toast.error(response.data.error || 'メディアのアップロードに失敗しました');
+        toast.error(response.data.error || 'メディアのアップロードに失敗しました', {
+          id: toastId
+        });
       }
     } catch (error) {
       console.error('アップロードエラー:', error);
+      
       // エラーの詳細情報を表示
-      if (error.response) {
+      if (axios.isAxiosError(error) && error.response) {
         // サーバーからのレスポンスがある場合
         console.error('Error response:', error.response.data);
         console.error('Error status:', error.response.status);
         toast.error(`アップロードエラー: ${error.response.data.error || error.message}`);
-      } else if (error.request) {
+      } else if (axios.isAxiosError(error) && error.request) {
         // リクエストは送信されたがレスポンスがない場合
         console.error('Error request:', error.request);
         toast.error('サーバーからの応答がありません。ネットワーク接続を確認してください。');
@@ -197,6 +242,88 @@ export default function MediaGallery({
       setIsLoading(false);
       setUploadProgress(0);
     }
+  };
+
+  // アップロードのモックで成功をシミュレート
+  const mockSuccessfulUpload = async (files) => {
+    if (isDemo) {
+      setIsLoading(true);
+      setUploadProgress(10);
+      
+      // 進捗状況の模擬
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 150);
+      
+      // 新しいメディアアイテムを作成
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      const newItems = [...items];
+      
+      files.forEach((file, index) => {
+        const isImage = file.type.startsWith('image/');
+        const newId = `mock-${Date.now()}-${index}`;
+        
+        if (isImage) {
+          const fileReader = new FileReader();
+          fileReader.onload = (e) => {
+            const newItem = {
+              id: newId,
+              url: e.target.result,
+              type: 'image',
+              caption: `アップロードした画像 ${items.length + index + 1}`,
+              isPrimary: items.length === 0,
+              publicId: newId
+            };
+            
+            newItems.push(newItem);
+            
+            // 最後のファイルの処理が完了したら状態を更新
+            if (index === files.length - 1) {
+              setItems(newItems);
+              setIsLoading(false);
+              setUploadProgress(0);
+              toast.success('メディアをアップロードしました（デモモード）');
+            }
+          };
+          fileReader.readAsDataURL(file);
+        } else {
+          // 動画の場合はモックデータを使用
+          const newItem = {
+            id: newId,
+            url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            type: 'video',
+            caption: `アップロードした動画 ${items.length + index + 1}`,
+            isPrimary: false,
+            thumbnail: "https://peach.blender.org/wp-content/uploads/bbb-splash.png",
+            publicId: newId
+          };
+          
+          newItems.push(newItem);
+          
+          // 最後のファイルの処理が完了したら状態を更新
+          if (index === files.length - 1) {
+            setItems(newItems);
+            setIsLoading(false);
+            setUploadProgress(0);
+            toast.success('メディアをアップロードしました（デモモード）');
+          }
+        }
+      });
+      
+      return true;
+    }
+    
+    return false; // デモモードでない場合は実際のアップロード処理へ
   };
 
   // メディアの削除
@@ -340,289 +467,297 @@ export default function MediaGallery({
     setIsVideoModalOpen(true);
   };
 
-  // ファイルドロップゾーン設定
-  const { getRootProps, getInputProps } = useDropzone({
+  // 変更: Dropzoneの実装を改善
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    handleMediaUpload(acceptedFiles);
+  }, [items, maxMediaCount]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.gif'],
-      'video/*': ['.mp4', '.webm', '.ogg']
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp'],
+      'video/*': ['.mp4', '.webm', '.ogg', '.mov']
     },
-    maxFiles: maxMediaCount - items.length > 0 ? maxMediaCount - items.length : 1,
-    onDrop: (acceptedFiles) => {
-      console.log('Files dropped:', acceptedFiles);
-      handleMediaUpload(acceptedFiles);
-    },
-    onDragEnter: () => {
-      console.log('Drag enter event triggered');
-    },
-    onDragOver: () => {
-      console.log('Drag over event triggered');
-    },
-    onDropRejected: (fileRejections) => {
-      console.log('Files rejected:', fileRejections);
-    },
-    noClick: true, // クリックによるファイル選択ダイアログを無効化（カスタムボタンを使用）
-    noKeyboard: true, // キーボードナビゲーションを無効化
-    preventDropOnDocument: true, // ドキュメント全体へのドロップを防止
-    useFsAccessApi: false // macOSでのFileSystem Access APIを無効化（一部ブラウザの互換性問題を回避）
+    maxFiles: maxMediaCount - items.length,
+    disabled: isLoading
   });
 
-  // アップロードモーダル
-  const UploadModal = ({ open }: { open: boolean }) => {
-    if (!open) return null;
-    
-    return (
-      <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl max-w-md w-full p-6">
-          <h3 className="text-xl font-bold mb-4">メディアをアップロード</h3>
-          
-          {isLoading ? (
-            <div className="py-12 flex flex-col items-center">
-              <FaSpinner className="text-[#66cdaa] text-4xl animate-spin mb-4" />
-              <p className="text-gray-600 mb-2">アップロード中... {uploadProgress}%</p>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
+  return (
+    <div className="w-full">
+      <div className="mb-6 flex justify-between items-center">
+        <h3 className="text-xl font-semibold text-gray-800">メディアギャラリー</h3>
+        {editable && (
+          <button
+            onClick={() => setUploadOpen(true)}
+            disabled={isLoading || loading || items.length >= maxMediaCount}
+            className={`px-4 py-2 rounded-lg flex items-center ${
+              isLoading || loading || items.length >= maxMediaCount
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-teal-600 hover:bg-teal-700 text-white'
+            } transition-colors`}
+          >
+            <FaUpload className="mr-2" /> 
+            アップロード
+          </button>
+        )}
+      </div>
+
+      {/* アップロード制限の警告 */}
+      {items.length >= maxMediaCount && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+          <FaExclamationTriangle className="inline-block mr-2" />
+          メディアのアップロード上限（{maxMediaCount}個）に達しています。新しいメディアをアップロードするには、既存のメディアを削除してください。
+        </div>
+      )}
+
+      {/* メディア数が0の場合のプレースホルダー */}
+      {items.length === 0 && !isLoading && !loading && (
+        <div className="text-center py-8 px-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg mb-6">
+          <FaImage className="mx-auto text-gray-400 text-4xl mb-3" />
+          <h4 className="text-gray-800 font-medium mb-2">まだメディアがありません</h4>
+          <p className="text-gray-600 text-sm mb-4">
+            写真や動画をアップロードして、あなたのプロフィールを充実させましょう。
+            マッチング率を上げるためには、高品質な写真を追加することをおすすめします。
+          </p>
+          {editable && (
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg inline-flex items-center transition-colors"
+            >
+              <FaUpload className="mr-2" /> 写真・動画をアップロード
+            </button>
+          )}
+        </div>
+      )}
+      
+      {/* メディアアイテムのグリッド表示 */}
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className={`relative group rounded-lg overflow-hidden shadow-sm border border-gray-200
+                ${item.isPrimary ? 'ring-2 ring-teal-600' : ''}
+                ${draggedItem === item ? 'opacity-50' : 'opacity-100'}
+              `}
+              draggable={editable}
+              onDragStart={(e) => handleDragStart(e, item)}
+              onDragOver={(e) => handleDragOver(e)}
+              onDragLeave={(e) => handleDragLeave(e)}
+              onDrop={(e) => handleDrop(e, item)}
+              onDragEnd={() => setDraggedItem(null)}
+              style={{ aspectRatio: '1/1', height: 'auto' }}
+            >
+              {/* メディアコンテンツ（画像または動画） */}
+              {item.type === 'image' ? (
+                <div className="w-full h-full">
+                  <img
+                    src={item.url}
+                    alt={item.caption || `メディア ${index + 1}`}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
+              ) : (
                 <div 
-                  className="bg-[#66cdaa] h-2.5 rounded-full" 
+                  className="w-full h-full relative cursor-pointer"
+                  onClick={() => handleVideoClick(item)}
+                  onMouseEnter={() => setHoveredVideoId(item.id)}
+                  onMouseLeave={() => setHoveredVideoId(null)}
+                >
+                  <img
+                    src={item.thumbnail || '/video-thumbnail-placeholder.jpg'}
+                    alt={item.caption || `動画 ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                    <FaPlayCircle className="text-white text-4xl" />
+                  </div>
+                </div>
+              )}
+              
+              {/* プライマリーバッジ */}
+              {item.isPrimary && (
+                <div className="absolute top-2 right-2 bg-teal-600 text-white rounded-full px-2 py-1 text-xs">
+                  メイン
+                </div>
+              )}
+
+              {/* アクションオーバーレイ（編集モード時のみ表示） */}
+              {editable && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+                  {!item.isPrimary && (
+                    <button
+                      onClick={() => handleSetPrimary(item.id)}
+                      className="p-2 bg-teal-600 hover:bg-teal-700 text-white rounded-full"
+                      title="メインに設定"
+                    >
+                      <FaStar />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-full"
+                    title="削除"
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          
+          {/* アップロードボタンをグリッド内に表示（スペースがある場合） */}
+          {editable && items.length < maxMediaCount && (
+            <div
+              {...getRootProps()}
+              className={`relative border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-4 transition-colors cursor-pointer
+                ${isDragActive ? 'border-[#66cdaa] bg-[#66cdaa]/10' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}
+              `}
+              style={{ aspectRatio: '1/1', height: 'auto' }}
+            >
+              <input {...getInputProps()} disabled={isLoading} />
+              {isLoading ? (
+                <FaSpinner className="mx-auto text-3xl text-[#66cdaa] mb-3 animate-spin" />
+              ) : isDragActive ? (
+                <FaUpload className="mx-auto text-3xl text-[#66cdaa] mb-3" />
+              ) : (
+                <div className="flex justify-center gap-4 mb-3">
+                  <FaImage className="text-3xl text-gray-400" />
+                  <FaVideo className="text-3xl text-gray-400" />
+                </div>
+              )}
+              
+              {isLoading ? (
+                <div className="mt-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-[#66cdaa] h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">アップロード中... {uploadProgress}%</p>
+                </div>
+              ) : isDragActive ? (
+                <p className="text-[#66cdaa]">ファイルをドロップしてアップロード</p>
+              ) : (
+                <>
+                  <p className="text-gray-500">クリックまたはファイルをドラッグ&ドロップしてアップロード</p>
+                  <p className="text-xs text-gray-400 mt-2">画像: JPG, PNG, GIF, WEBP (最大10MB)</p>
+                  <p className="text-xs text-gray-400">動画: MP4, WebM, Ogg, MOV (最大50MB)</p>
+                  <p className="text-xs text-gray-400">あと{maxMediaCount - items.length}件アップロード可能</p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* ローディングインジケーター */}
+      {(isLoading || loading) && (
+        <div className="flex flex-col items-center justify-center py-6">
+          {uploadProgress > 0 ? (
+            <div className="w-full max-w-md">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm text-gray-700">アップロード中...</span>
+                <span className="text-sm font-medium text-gray-700">{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="bg-teal-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
             </div>
           ) : (
-            <div 
-              {...getRootProps()} 
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center cursor-pointer hover:border-[#66cdaa] transition min-h-[200px] relative z-[60]"
-              style={{ touchAction: 'none' }} // モバイルデバイスでのタッチイベントを制御
-            >
-              <input {...getInputProps()} />
-              <div className="flex space-x-4 mb-4">
-                <FaImage className="text-[#66cdaa] text-2xl" />
-                <FaVideo className="text-[#66cdaa] text-2xl" />
-              </div>
-              <p className="text-gray-600">
-                クリックまたはドラッグ＆ドロップで写真・動画をアップロード
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                JPG, PNG, GIF, MP4, WebM, Ogg形式がサポートされています
-              </p>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation(); // イベントの伝播を停止
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.multiple = true;
-                  input.accept = 'image/*,video/*';
-                  input.onchange = (event) => {
-                    // @ts-ignore
-                    const files = event.target.files;
-                    if (files && files.length > 0) {
-                      const fileArray = Array.from(files);
-                      console.log('Files selected:', fileArray);
-                      handleMediaUpload(fileArray);
-                    }
-                  };
-                  input.click();
-                }}
-                className="mt-4 px-4 py-2 bg-[#66cdaa] text-white rounded-md hover:bg-[#90ee90] transition"
-              >
-                ファイルを選択
-              </button>
-            </div>
+            <>
+              <FaSpinner className="animate-spin text-teal-600 text-2xl mb-2" />
+              <p className="text-gray-700">読み込み中...</p>
+            </>
           )}
-          
-          <div className="flex justify-end mt-4">
-            <button 
-              onClick={() => {
-                setUploadOpen(false);
-                setUploadProgress(0);
-              }}
-              className="px-4 py-2 border rounded-md hover:bg-gray-100"
-              disabled={isLoading}
-            >
-              {isLoading ? 'アップロード中...' : 'キャンセル'}
-            </button>
-          </div>
         </div>
-      </div>
-    );
-  };
+      )}
 
-  // メディアアイテムのレンダリング
-  const renderMediaItem = (item: MediaItem) => {
-    return (
-      <div
-        key={item.id}
-        draggable={editable}
-        onDragStart={() => handleDragStart(item)}
-        onDragOver={(e) => handleDragOver(e, item)}
-        onDragEnd={handleDragEnd}
-        onMouseEnter={() => item.type === 'video' && !isMobile && handleVideoHover(item.id, true)}
-        onMouseLeave={() => item.type === 'video' && !isMobile && handleVideoHover(item.id, false)}
-        onTouchStart={() => item.type === 'video' && handleTouchStart(item.id)}
-        onTouchEnd={() => item.type === 'video' && handleTouchEnd(item.id)}
-        className={`relative aspect-square rounded-lg overflow-hidden group ${
-          draggedItem?.id === item.id ? 'opacity-50' : 'opacity-100'
-        } ${
-          item.isPrimary ? 'ring-2 ring-[#66cdaa]' : ''
-        }`}
-      >
-        {item.type === 'image' ? (
-          <Image
-            src={item.url}
-            alt={item.caption || `写真`}
-            fill
-            className="object-cover"
-            unoptimized
-          />
-        ) : (
-          <>
-            <div className="absolute inset-0 flex items-center justify-center">
-              {item.thumbnail ? (
-                <Image
-                  src={item.thumbnail}
-                  alt={item.caption || "ビデオのサムネイル"}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
+      {/* ビデオプレイヤーモーダル */}
+      {isVideoModalOpen && selectedVideo && (
+        <VideoPlayerModal
+          video={selectedVideo}
+          onClose={() => {
+            setIsVideoModalOpen(false);
+            setSelectedVideo(null);
+          }}
+        />
+      )}
+      
+      {/* アップロードモーダル */}
+      {uploadOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => !isLoading && setUploadOpen(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-semibold mb-4">メディアをアップロード</h3>
+            
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed rounded-lg p-8 mb-4 text-center transition cursor-pointer ${
+                isDragActive ? 'border-[#66cdaa] bg-[#66cdaa]/10' : 'border-gray-300 hover:border-[#66cdaa]'
+              } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              <input {...getInputProps()} disabled={isLoading} />
+              {isLoading ? (
+                <FaSpinner className="mx-auto text-3xl text-[#66cdaa] mb-3 animate-spin" />
+              ) : isDragActive ? (
+                <FaUpload className="mx-auto text-3xl text-[#66cdaa] mb-3" />
               ) : (
-                <div className="bg-gray-200 w-full h-full flex items-center justify-center">
-                  <FaVideo className="text-gray-400 text-4xl" />
+                <div className="flex justify-center gap-4 mb-3">
+                  <FaImage className="text-3xl text-gray-400" />
+                  <FaVideo className="text-3xl text-gray-400" />
                 </div>
               )}
-              <button 
-                onClick={() => openVideoModal(item)}
-                className="absolute z-10 text-white text-4xl hover:text-[#66cdaa] transition-all transform hover:scale-110"
-              >
-                {playingVideo === item.id ? <FaPause /> : <FaPlayCircle />}
-              </button>
-            </div>
-            <video 
-              ref={el => videoRefs.current[item.id] = el}
-              src={item.url}
-              className={`absolute inset-0 object-cover w-full h-full ${hoveredVideoId === item.id ? 'opacity-100' : 'opacity-0'}`}
-              onEnded={() => setPlayingVideo(null)}
-              playsInline
-              muted
-              loop
-            />
-          </>
-        )}
-
-        {editable && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3">
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setPrimaryMedia(item.id)}
-                className={`p-2 rounded-full ${
-                  item.isPrimary 
-                    ? 'bg-[#66cdaa] text-white' 
-                    : 'bg-white/80 text-gray-800 hover:bg-[#66cdaa] hover:text-white'
-                } transition`}
-                title="プロフィールに設定"
-                disabled={isLoading}
-              >
-                <FaStar size={14} />
-              </button>
-              <button
-                onClick={() => handleDelete(item.id)}
-                className="p-2 rounded-full bg-white/80 text-gray-800 hover:bg-red-500 hover:text-white transition"
-                title="削除"
-                disabled={isLoading}
-              >
-                <FaTrash size={14} />
-              </button>
+              
+              {isLoading ? (
+                <div className="mt-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-[#66cdaa] h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">アップロード中... {uploadProgress}%</p>
+                </div>
+              ) : isDragActive ? (
+                <p className="text-[#66cdaa]">ファイルをドロップしてアップロード</p>
+              ) : (
+                <>
+                  <p className="text-gray-500">クリックまたはファイルをドラッグ&ドロップしてアップロード</p>
+                  <p className="text-xs text-gray-400 mt-2">画像: JPG, PNG, GIF, WEBP (最大10MB)</p>
+                  <p className="text-xs text-gray-400">動画: MP4, WebM, Ogg, MOV (最大50MB)</p>
+                  <p className="text-xs text-gray-400">あと{maxMediaCount - items.length}件アップロード可能</p>
+                </>
+              )}
             </div>
             
-            <div className="w-full">
-              <input
-                type="text"
-                defaultValue={item.caption || ''}
-                onChange={(e) => handleCaptionChange(item.id, e.target.value)}
-                onBlur={handleCaptionBlur}
-                placeholder="キャプションを追加"
-                className="w-full bg-white/80 p-2 text-sm rounded-md"
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => !isLoading && setUploadOpen(false)}
+                className="px-4 py-2 border rounded-md hover:bg-gray-100 disabled:opacity-50 transition"
                 disabled={isLoading}
-              />
+              >
+                キャンセル
+              </button>
             </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-sm p-6 relative"
-    >
-      {(isLoading || loading) && !uploadOpen && (
-        <div className="absolute inset-0 bg-white/70 z-10 flex items-center justify-center rounded-xl">
-          <FaSpinner className="text-[#66cdaa] text-4xl animate-spin" />
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-      
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold">メディアギャラリー</h2>
-        {editable && (
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="bg-[#66cdaa] text-white px-4 py-2 rounded-md hover:bg-[#90ee90] transition flex items-center gap-2"
-            disabled={items.length >= maxMediaCount || isLoading}
-          >
-            <FaUpload /> メディアを追加
-          </button>
-        )}
-      </div>
-      
-      <p className="text-gray-500 mb-4 text-sm">
-        写真や動画をアップロードして、あなたの魅力をアピールしましょう。
-        {editable && `（最大${maxMediaCount}個）`}
-      </p>
-      
-      {/* デモモード通知 */}
-      {isDemo && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
-          <p className="text-yellow-700 text-sm flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            APIからのデータ取得に失敗したため、デモデータを表示しています。ログインしているか確認してください。
-          </p>
-        </div>
-      )}
-      
-      {items.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {items.map(renderMediaItem)}
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <FaImage className="text-gray-300 text-4xl mx-auto mb-4" />
-          <p className="text-gray-500">まだメディアがありません</p>
-          {editable && (
-            <button
-              onClick={() => setUploadOpen(true)}
-              className="mt-4 px-4 py-2 bg-[#66cdaa] text-white rounded-md hover:bg-[#90ee90] transition"
-              disabled={isLoading}
-            >
-              メディアをアップロード
-            </button>
-          )}
-        </div>
-      )}
-      
-      <UploadModal open={uploadOpen} />
-      
-      {/* ビデオプレーヤーモーダル */}
-      <VideoPlayerModal 
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-        videoUrl={selectedVideo?.url || ''}
-        caption={selectedVideo?.caption}
-        thumbnail={selectedVideo?.thumbnail}
-        userName={userName}
-        userImage={userImage}
-      />
-    </motion.div>
+    </div>
   );
 }

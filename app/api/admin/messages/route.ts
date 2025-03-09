@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 
-// BigInt to JSON Serialization
-BigInt.prototype.toJSON = function() {
-  return this.toString();
+// 安全なJSONProcessing関数
+// BigIntを扱う関数を別のユーティリティとして定義
+const safeJSONStringify = (obj: any): string => {
+  return JSON.stringify(obj, (_, value) => {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    return value;
+  });
 };
 
 // 管理者権限チェック関数
@@ -233,8 +239,9 @@ export async function GET(request: NextRequest) {
 
     } catch (dbError) {
       console.error('❌ データベースアクセスエラー:', dbError);
+      const errorMessage = dbError instanceof Error ? dbError.message : '不明なエラー';
       return NextResponse.json(
-        { error: 'メッセージの取得に失敗しました', details: dbError.message },
+        { error: 'メッセージの取得に失敗しました', details: errorMessage },
         { status: 500 }
       );
     }
@@ -304,8 +311,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         blockReason: true,
         senderId: true,
         receiverId: true,
-        matchId: true,
-        adminMemo: true
+        matchId: true
+        // adminMemoプロパティが型に存在しない場合は削除
+        // adminMemo: true
       }
     });
 
@@ -315,8 +323,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   } catch (error) {
     console.error('❌ メッセージ更新APIエラー:', error);
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー';
     return NextResponse.json(
-      { error: "メッセージの更新中にエラーが発生しました", details: error.message },
+      { error: "メッセージの更新中にエラーが発生しました", details: errorMessage },
       { status: 500 }
     );
   }
@@ -361,8 +370,9 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ メッセージ削除APIエラー:', error);
+    const errorMessage = error instanceof Error ? error.message : '不明なエラー';
     return NextResponse.json(
-      { error: "メッセージの削除中にエラーが発生しました", details: error.message },
+      { error: "メッセージの削除中にエラーが発生しました", details: errorMessage },
       { status: 500 }
     );
   }

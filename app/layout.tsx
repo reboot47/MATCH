@@ -3,6 +3,10 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
 import Providers from "@/providers";
 import { Toaster } from 'react-hot-toast';
+import { UserProvider } from "./contexts/UserContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
+import { MissionProvider } from "./contexts/MissionContext";
+import { BoostProvider } from "./contexts/BoostContext";
 
 // 日英両対応フォントの設定
 const inter = Inter({
@@ -70,9 +74,17 @@ export default function RootLayout({
     <html lang="ja" className={`${inter.variable} ${notoSans.variable} ${notoSerif.variable}`}>
       <body className="font-sans bg-white text-gray-900">
         <Providers>
-          <div className="mx-auto max-w-7xl">
-            {children}
-          </div>
+          <UserProvider>
+            <NotificationProvider>
+              <MissionProvider>
+                <BoostProvider>
+                  <div className="mx-auto max-w-7xl">
+                    {children}
+                  </div>
+                </BoostProvider>
+              </MissionProvider>
+            </NotificationProvider>
+          </UserProvider>
           <Toaster position="top-right" toastOptions={{
             duration: 4000,
             style: {
