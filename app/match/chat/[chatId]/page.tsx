@@ -2,10 +2,12 @@
 
 import React, { useState, use, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChatHeader, ChatMessage, ChatInput } from '@/components/chat';
+import { ChatHeader, ChatMessage } from '@/components/chat';
+import { ChatInput } from '@/app/components/chat';
 import { AppointmentModal } from '@/app/components/chat';
 import { motion } from 'framer-motion';
 import { useUser } from '../../../../components/UserContext';
+import toast from 'react-hot-toast';
 
 // メッセージタイプの定義
 type MessageType = 'date' | 'text' | 'notification';
@@ -132,6 +134,10 @@ export default function ChatDetail({ params }: ChatParams) {
   const [replyingTo, setReplyingTo] = useState<{id: string, content: string, isMe: boolean} | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showUnreadJumpButton, setShowUnreadJumpButton] = useState<boolean>(false);
+  
+  // ポイントシステム用の状態
+  const [currentPoints, setCurrentPoints] = useState<number>(100); // 初期ポイント
+  const requiredPoints = 5; // 基本メッセージ送信に必要なポイント
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const unreadRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null); // メッセージコンテナへの参照を追加
@@ -245,9 +251,54 @@ export default function ChatDetail({ params }: ChatParams) {
     setReplyingTo(null);
   };
   
+  // ポイント更新ハンドラー
+  const handlePointsUpdated = (newPoints: number) => {
+    setCurrentPoints(newPoints);
+    console.log(`ポイント更新: ${newPoints}ポイント`);
+    // 必要に応じてここでポイントの永続化を行う
+  };
+
   // テキストメッセージ送信ハンドラー
   const handleSendMessage = useCallback((content: string, attachments?: any[]) => {
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
+    
+    // ポイントのチェック
+    if (currentPoints < requiredPoints) {
+      toast.error(`ポイントが足りません。必要ポイント: ${requiredPoints}ポイント`);
+      return;
+    }
+    
+    // ポイント消費
+    setCurrentPoints(prev => prev - requiredPoints);
+    console.log(`メッセージ送信: ${requiredPoints}ポイント消費されました。残り${currentPoints - requiredPoints}ポイント`);
+    
+    // 添付ファイルをコンソールに出力して確認（デバッグ用）
+    console.log('添付ファイル:', attachments);
+    if (attachments && attachments.length > 0) {
+      console.log('最初の添付ファイルの型:', typeof attachments[0]);
+      console.log('最初の添付ファイルのプロパティ:', Object.keys(attachments[0]));
+    }
+    
+    // 入力中表示を非表示に
+    setIsTyping(false);
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (typingIndicator) typingIndicator.classList.add('hidden');
+    
+    // URLの検出とプレビュー情報を準備
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = content.match(urlRegex);
+    let urlAttachments: any[] = [];
+    
+    if (urls && urls.length > 0) {
+      // 最初のURLのみをプレビューとして扱う (LINE仕様)
+      urlAttachments = [{
+        type: 'link',
+        url: urls[0],
+        previewUrl: 'https://via.placeholder.com/300x150',  // 実際にはOGP取得機能を実装する
+        title: 'Shared Link',
+        description: urls[0].length > 50 ? urls[0].substring(0, 50) + '...' : urls[0]
+      }];
+    }
     
     // 新しいメッセージオブジェクトを作成
     const newMessage: TextMessage = {
@@ -257,13 +308,23 @@ export default function ChatDetail({ params }: ChatParams) {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
       isRead: false,
-      attachments: attachments && attachments.length > 0 ? [
-        {
-          type: 'image',
-          url: URL.createObjectURL(attachments[0]),
-          previewUrl: URL.createObjectURL(attachments[0])
-        }
-      ] : undefined,
+      // 添付ファイルの処理を安全に行う
+      attachments: attachments && attachments.length > 0 ?
+        // MessageInputから処理済みのオブジェクトが渡される場合
+        attachments.map(attachment => {
+          // すでに適切な形式（typeとurlを持つオブジェクト）であればそのまま使用
+          if (attachment && typeof attachment === 'object' && 'type' in attachment && 'url' in attachment) {
+            return attachment;
+          }
+          
+          // それ以外の場合はデフォルトで画像として処理
+          return {
+            type: 'image',
+            url: attachment?.url || '',
+            previewUrl: attachment?.previewUrl || attachment?.url || ''
+          };
+        })
+      : urlAttachments.length > 0 ? urlAttachments : undefined,
       // 返信の場合、返信情報を追加
       replyTo: replyingTo || undefined
     };
@@ -273,6 +334,14 @@ export default function ChatDetail({ params }: ChatParams) {
     
     // 返信状態をリセット
     setReplyingTo(null);
+    
+    // 添付ファイルをクリア
+    const preview = document.getElementById('attachment-preview');
+    if (preview) {
+      preview.classList.add('hidden');
+      const imgPreviews = preview.querySelector('#image-previews');
+      if (imgPreviews) imgPreviews.remove();
+    }
     
     // メッセージ送信時に自動的に一番下までスクロール - 複数回呼び出して確実に動作させる
     requestAnimationFrame(() => {
@@ -398,20 +467,32 @@ export default function ChatDetail({ params }: ChatParams) {
     router.back();
   };
 
-  // スタイル変数を使って、フッターが表示されないようにする
+  // チャット画面ではフッターを非表示にする
   useEffect(() => {
-    // フッターを非表示にする
-    const footer = document.querySelector('nav[role="navigation"]');
-    if (footer) {
-      (footer as HTMLElement).style.display = 'none';
+    // チャット画面でフッターを非表示にする
+    const footerElement = document.querySelector('.fixed.bottom-0.left-0.right-0');
+    if (footerElement) {
+      (footerElement as HTMLElement).style.display = 'none';
     }
     
+    // ページ遷移時にフッターが正しく表示されるよう、ページ全体のスタイルを調整する
+    document.body.classList.add('chat-page');
+    
     return () => {
-      // コンポーネントのアンマウント時にフッターを再表示
-      const footer = document.querySelector('nav[role="navigation"]');
-      if (footer) {
-        (footer as HTMLElement).style.display = 'flex';
-      }
+      // コンポーネントアンマウント時にクラスを元に戻す
+      document.body.classList.remove('chat-page');
+      
+      // ページ遷移後にフッターが正しく表示されるようにする
+      // チャット画面から移動した後、正しいフッターを表示する
+      const nextPageUrl = sessionStorage.getItem('nextPageUrl') || '/mypage';
+      
+      // コンテキスト切り替えのためのディレイ
+      setTimeout(() => {
+        const footerAfterNavigation = document.querySelector('.fixed.bottom-0.left-0.right-0');
+        if (footerAfterNavigation) {
+          (footerAfterNavigation as HTMLElement).style.display = 'flex';
+        }
+      }, 100);
     };
   }, []);
   
@@ -510,12 +591,19 @@ export default function ChatDetail({ params }: ChatParams) {
     };
   }, [mockMessagesState, scrollToBottom]); // メッセージ状態全体を監視
   
-  // コンポーネント初期読み込み時にメッセージの最後にスクロールする
+  // コンポーネント初期読み込み時にbodyにクラスを追加しチャットページとして認識させる
   useEffect(() => {
+    // チャットページとして認識させるためのクラスを追加
+    document.body.classList.add('chat-page');
     console.log('初期表示時のスクロール処理開始');
     
     // 初期化直後のスクロール
     scrollToBottom();
+    
+    return () => {
+      // クリーンアップ時にクラスを削除
+      document.body.classList.remove('chat-page');
+    };
     
     // 全ての要素が描画された後に確実にスクロールするため、複数の手法で試行
     // 1. アニメーションフレームを使用
@@ -559,7 +647,9 @@ export default function ChatDetail({ params }: ChatParams) {
       });
       
       if (messagesEndRef.current) {
-        observer.observe(messagesEndRef.current);
+        // nullチェック済みの変数を使用（TypeScriptの型エラーを解消）
+        const element = messagesEndRef.current as Element;
+        observer.observe(element);
       }
       
       return () => {
@@ -591,8 +681,11 @@ export default function ChatDetail({ params }: ChatParams) {
     }
   }, [mockMessagesState]); // unreadCountを依存配列から除去 // 依存配列にunreadCountを含める
 
+  // デバッグ用にチャットインターフェースをコンソールに出力
+  console.log('Rendering chat page, replyingTo:', replyingTo);
+
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen flex flex-col relative overflow-hidden">
+    <div className="max-w-md mx-auto bg-white min-h-screen flex flex-col relative z-0">
       <ChatHeader
         partnerName={mockUser.name}
         isOnline={mockUser.isOnline}
@@ -606,8 +699,8 @@ export default function ChatDetail({ params }: ChatParams) {
 
       {/* チャットコンテンツ - 高さを固定し、スクロールを有効化 */}
       <div 
-        className="pt-16 pb-16 flex-1 flex flex-col relative overflow-hidden"
-        style={{ height: 'calc(100vh - 60px)' }}
+        className="pt-16 pb-20 flex-1 flex flex-col relative overflow-auto"
+        style={{ height: 'calc(100vh - 130px)' }}
       >
         {/* ヘッダー直下のLINE風約束機能バナー */}
         <div className="sticky top-0 z-20 bg-[#06c755] bg-opacity-10 border-b border-[#06c755] border-opacity-20 py-2.5 px-3 shadow-sm">
@@ -639,8 +732,8 @@ export default function ChatDetail({ params }: ChatParams) {
             WebkitOverflowScrolling: 'touch',
             overflowX: 'hidden',
             overflowY: 'auto', // overflow-yを明示的に設定
-            height: 'calc(100vh - 180px)',
-            maxHeight: 'calc(100vh - 180px)', // 最大高さも設定
+            height: 'calc(100vh - 200px)',
+            maxHeight: 'calc(100vh - 200px)', // 最大高さも設定
             display: 'flex',
             flexDirection: 'column',
             backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'100\' height=\'100\' viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z\' fill=\'%239fa6ae\' fill-opacity=\'0.06\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")',
@@ -739,10 +832,13 @@ export default function ChatDetail({ params }: ChatParams) {
         </div>
       </div>
 
-      {/* チャット入力フォーム - 固定配置 */}
-      <div className="bg-white border-t border-gray-200 py-2 px-3 w-full fixed bottom-0 left-0 right-0 z-10 shadow-md" style={{ maxWidth: '100vw' }}>
+      {/* ChatInputコンポーネントを使用 */}
+      <div 
+        id="chat-input-box"
+        className="bg-white border-t border-gray-200 w-full sticky bottom-0 left-0 right-0 shadow-md" 
+      >
         {replyingTo && (
-          <div className="flex items-center justify-between bg-gray-100 rounded-md p-2 mb-2 border-l-2 border-[#06c755]">
+          <div className="flex items-center justify-between bg-gray-100 rounded-md p-2 mx-4 mt-3 mb-0 border-l-2 border-[#06c755]">
             <div className="overflow-hidden">
               <p className="text-xs text-gray-500">返信先:</p>
               <p className="text-xs font-medium text-gray-700 truncate">{replyingTo.content}</p>
@@ -757,22 +853,44 @@ export default function ChatDetail({ params }: ChatParams) {
             </button>
           </div>
         )}
+        {/* ポイント表示 - LINE風デザイン */}
+        <div className="flex items-center justify-between px-4 py-1 bg-gray-50 border-t border-gray-200">
+          <div className="flex items-center">
+            <span className="text-xs font-medium text-gray-600">ポイント:</span>
+            <span className="ml-1 text-sm font-bold text-[#06c755]">{currentPoints}</span>
+          </div>
+          <div className="text-xs text-gray-500">
+            送信毎: -{requiredPoints} pt
+          </div>
+        </div>
+        
         <ChatInput 
           onSendMessage={handleSendMessage}
-          isReplying={!!replyingTo}
+          onPointsUpdated={handlePointsUpdated}
+          disabled={currentPoints < requiredPoints}
+          placeholder={currentPoints < requiredPoints ? "ポイントが足りません" : "メッセージを入力..."}
+          currentPoints={currentPoints}
+          requiredPoints={requiredPoints}
+          gender={'male'}
         />
         
         {/* 入力中表示 - LINE風タイピングインジケーター */}
-        {isTyping && (
-          <div className="absolute top-0 left-0 right-0 -translate-y-full p-1 bg-white bg-opacity-80 backdrop-blur-sm border-t border-gray-200 text-center">
-            <p className="text-xs text-gray-500 animate-pulse">
-              <span className="inline-block mr-1 w-1.5 h-1.5 bg-[#06c755] rounded-full animate-pulse"></span>
-              <span className="inline-block mr-1 w-1.5 h-1.5 bg-[#06c755] rounded-full animate-[pulse_1.5s_0.2s_infinite]"></span>
-              <span className="inline-block mr-1 w-1.5 h-1.5 bg-[#06c755] rounded-full animate-[pulse_1.5s_0.4s_infinite]"></span>
-              相手が入力中...
-            </p>
+        <div id="typing-indicator" className={`absolute top-0 left-0 right-0 -translate-y-full transition-all duration-300 ${isTyping ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <div className="flex items-center p-2 bg-white border-t border-gray-200 shadow-sm">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden mr-2 border border-gray-200">
+              <img src={mockUser.avatar} alt="Avatar" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-xs font-medium text-gray-700">{mockUser.name}</span>
+              <div className="flex items-center mt-0.5">
+                <span className="inline-block w-2 h-2 bg-[#06c755] rounded-full animate-[bounce_0.8s_infinite]"></span>
+                <span className="inline-block mx-0.5 w-2 h-2 bg-[#06c755] rounded-full animate-[bounce_0.8s_0.2s_infinite]"></span>
+                <span className="inline-block w-2 h-2 bg-[#06c755] rounded-full animate-[bounce_0.8s_0.4s_infinite]"></span>
+                <span className="text-xs text-gray-500 ml-1">入力中...</span>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </div>
       
       {/* 約束機能モーダル */}

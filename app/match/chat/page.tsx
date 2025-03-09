@@ -132,87 +132,8 @@ export default function ChatPage() {
         <h2 className="text-sm font-medium text-gray-500 mb-2">メッセージ</h2>
         <ChatList chats={mockChats} />
       </div>
-
-      <nav className="mt-auto border-t border-gray-200 bg-white py-2 px-6 flex justify-around items-center">
-        <Link href="/match" passHref>
-          <div className="flex flex-col items-center space-y-1 text-gray-500 hover:text-primary-500">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-            <span className="text-xs">ホーム</span>
-          </div>
-        </Link>
-        
-        <Link href="/match/discover" passHref>
-          <div className="flex flex-col items-center space-y-1 text-gray-500 hover:text-primary-500">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-            </svg>
-            <span className="text-xs">発見</span>
-          </div>
-        </Link>
-        
-        <Link href="/match/chat" passHref>
-          <div className="flex flex-col items-center space-y-1 text-primary-500">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
-            <span className="text-xs">メッセージ</span>
-          </div>
-        </Link>
-        
-        <Link href="/match/profile" passHref>
-          <div className="flex flex-col items-center space-y-1 text-gray-500 hover:text-primary-500">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-            <span className="text-xs">プロフィール</span>
-          </div>
-        </Link>
-      </nav>
+      {/* 下部の余白を追加してBottomNavigationと重ならないようにする */}
+      <div className="pb-20"></div>
     </div>
   );
 }
