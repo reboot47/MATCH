@@ -21,8 +21,10 @@ export interface ImageAttachment extends Attachment {
 export interface VideoAttachment extends Attachment {
   type: 'video';
   url: string;
-  thumbnailUrl?: string;
-  duration?: number;
+  thumbnailUrl?: string;  // 動画のサムネイル画像のURL
+  duration?: number;      // 動画の再生時間（秒）
+  title?: string;        // 動画のタイトル
+  description?: string;  // 動画の説明
 }
 
 // 位置情報添付ファイル
@@ -32,6 +34,8 @@ export interface LocationAttachment extends Attachment {
   longitude: number;
   name?: string;
   address?: string;
+  url?: string;         // GoogleマップなURL
+  previewUrl?: string;  // 地図画像のURL
 }
 
 // URL添付ファイル (OGP情報含む)
