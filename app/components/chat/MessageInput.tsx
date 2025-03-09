@@ -706,15 +706,15 @@ export default function MessageInput({
         </div>
       )}
       
-      <div className="flex items-end">
-        <div className="relative mr-2">
+      <div className="flex items-end flex-wrap gap-2">
+        <div className="relative">
           <button
-            className="text-gray-500 hover:text-[#06c755] p-2 transition-colors rounded-full hover:bg-gray-100"
+            className="text-gray-500 hover:text-[#06c755] p-1.5 transition-colors rounded-full hover:bg-gray-100"
             onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
             aria-label="添付ファイルの追加"
             title="添付ファイルの追加"
           >
-            <HiPaperClip className="w-6 h-6" />
+            <HiPaperClip className="w-5 h-5" />
           </button>
           
           {/* 添付メニュー */}
@@ -813,29 +813,38 @@ export default function MessageInput({
           </AnimatePresence>
         </div>
         
-        <div className="flex-1 bg-white rounded-2xl flex items-end border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200 focus-within:border-[#06c755] focus-within:ring-1 focus-within:ring-[#06c755]">
+        <div className="flex-1 min-w-0 bg-white rounded-2xl flex items-end border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200" style={{ WebkitAppearance: 'none' }}>
           <textarea
-            className="flex-1 bg-transparent border-none resize-none px-4 py-3 outline-none text-sm max-h-32"
+            className="flex-1 min-w-0 bg-transparent border-none resize-none px-2 sm:px-3 py-2 outline-none text-sm max-h-32 overflow-auto"
             placeholder={placeholder}
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
             rows={1}
-            style={{ minHeight: '46px' }}
+            style={{
+              minHeight: '42px',
+              WebkitAppearance: 'none',
+              WebkitBorderRadius: '0px',
+              caretColor: '#06c755',
+              WebkitUserSelect: 'text',
+              WebkitTapHighlightColor: 'transparent',
+              outline: 'none',
+              boxShadow: 'none'
+            }}
           />
           
           <button
-            className="mr-2 text-gray-400 hover:text-[#06c755] p-2 transition-colors rounded-full hover:bg-gray-100 active:bg-gray-200"
+            className="mr-1 text-gray-400 hover:text-[#06c755] p-1.5 transition-colors rounded-full hover:bg-gray-100 active:bg-gray-200"
             onClick={() => setIsEmoticonPickerOpen(!isEmoticonPickerOpen)}
             aria-label="絵文字の選択"
             title="絵文字の選択"
           >
-            <HiEmojiHappy className="w-5 h-5" />
+            <HiEmojiHappy className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
         
         <button
-          className={`ml-2 w-12 h-12 flex items-center justify-center rounded-full ${            (!text && attachments.length === 0) || disabled || sending || isPointsInsufficient
+          className={`w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-full ${(!text && attachments.length === 0) || disabled || sending || isPointsInsufficient
               ? 'bg-gray-100 text-gray-400'
               : 'bg-[#06c755] text-white hover:bg-[#05b64b] active:bg-[#05a044] shadow-md hover:shadow-lg'
           } transition-all duration-200 transform hover:scale-105 ${sending ? 'animate-pulse' : ''}`}
@@ -845,7 +854,7 @@ export default function MessageInput({
           title={isPointsInsufficient ? `ポイントが不足しています (${currentPoints}/${totalPointsRequired})` : 'メッセージを送信'}
         >
           <div className="flex items-center justify-center">
-            <RiSendPlaneFill className="w-6 h-6" />
+            <RiSendPlaneFill className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </button>
       </div>

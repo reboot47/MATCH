@@ -133,15 +133,17 @@ export default function MessageBubble({
 
     switch (message.status) {
       case 'sending':
-        return <div className="w-2 h-2 bg-gray-300 rounded-full mr-1 animate-pulse" />;
+        return <div className="w-1.5 h-1.5 bg-gray-300 rounded-full mr-0.5 animate-pulse" />;
       case 'sent':
-        return <FaCheck className="text-gray-400 text-xs" />;
+        return <FaCheck className="text-gray-400 text-[10px] mr-0.5" />;
       case 'delivered':
-        return <FaCheckDouble className="text-gray-400 text-xs" />;
+        return <FaCheckDouble className="text-gray-400 text-[10px] mr-0.5" />;
       case 'read':
-        return <FaCheckDouble className="text-primary-300 text-xs" />;
+        return (
+          <span className="text-[10px] text-primary-400 mr-0.5 font-medium select-none">既読</span>
+        );
       case 'failed':
-        return <span className="text-error-300 text-xs">!</span>;
+        return <span className="text-error-300 text-[10px] mr-0.5">!</span>;
       default:
         return null;
     }
@@ -159,12 +161,12 @@ export default function MessageBubble({
 
     return (
       <div className={`flex mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
-        <div className="flex items-center space-x-1 bg-white rounded-full px-2 py-1 shadow-sm">
+        <div className="flex items-center space-x-1 bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100">
           {Object.entries(reactionCounts).map(([type, count]) => (
             <div key={type} className="flex items-center">
               {type === 'like' && <HiHeart className="text-pink-500 w-3 h-3" />}
               {/* 他のリアクションタイプもここに追加 */}
-              <span className="text-xs text-gray-600 ml-0.5">{count}</span>
+              <span className="text-xs text-gray-600 ml-0.5 select-none">{count}</span>
             </div>
           ))}
         </div>
@@ -173,13 +175,39 @@ export default function MessageBubble({
   };
 
   // フォーマットされた時間
-  const formattedTime = formatDistanceToNow(message.createdAt, { 
-    addSuffix: true,
-    locale: ja
-  });
+  // LINEスタイルの簡潔な時間表示
+  const formatMessageTime = (date: Date): string => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const isToday = date >= today;
+    const isYesterday = date >= yesterday && date < today;
+    
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? '午後' : '午前';
+    const hour12 = hours % 12 || 12;
+    
+    if (isToday) {
+      return `${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
+    } else if (isYesterday) {
+      return `昨日 ${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
+    } else {
+      return `${date.getMonth() + 1}/${date.getDate()} ${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
+    }
+  };
+  
+  const formattedTime = formatMessageTime(message.createdAt);
 
   return (
-    <div className={`flex mb-4 ${isMine ? 'justify-end' : 'justify-start'} relative`}>
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`flex ${isMine ? 'mb-3' : 'mb-3'} ${isMine ? 'justify-end' : 'justify-start'} relative group`}
+    >
       {!isMine && showAvatar && (
         <div className="mr-2 flex-shrink-0">
           <div className="relative w-8 h-8 rounded-full overflow-hidden">
@@ -199,7 +227,7 @@ export default function MessageBubble({
         </div>
       )}
 
-      <div className={`max-w-[70%] ${isMine ? 'order-1' : 'order-2'}`}>
+      <div className={`${isMine ? 'order-1 mr-1.5' : 'order-2'}`} style={{ maxWidth: 'calc(85% - 24px)' }}>
         {!isMine && senderName && (
           <div className="text-xs text-gray-500 mb-1 ml-1">{senderName}</div>
         )}
@@ -210,19 +238,22 @@ export default function MessageBubble({
           onMouseLeave={() => setShowOptions(false)}
         >
           <div
-            className={`px-3 py-2 rounded-lg break-words ${
+            className={`px-3 py-2.5 break-words ${
               isMine
-                ? 'bg-primary-300 text-white rounded-br-none'
-                : 'bg-gray-100 text-gray-800 rounded-bl-none'
+                ? 'bg-primary-300 text-white rounded-2xl rounded-br-none shadow-sm transition-all duration-150 group-hover:bg-primary-400'
+                : 'bg-gray-100 text-gray-800 rounded-2xl rounded-bl-none transition-all duration-150 group-hover:bg-gray-200'
             }`}
+            style={{
+              maxWidth: '85vw'
+            }}
           >
             {message.isDeleted ? (
-              <span className="italic text-sm opacity-60">
+              <span className="italic text-xs opacity-60">
                 {isMine ? 'このメッセージは削除されました' : 'メッセージは削除されました'}
               </span>
             ) : (
               <>
-                {message.content && <div className="text-sm">{message.content}</div>}
+                {message.content && <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
                 {renderAttachments()}
               </>
             )}
@@ -262,14 +293,14 @@ export default function MessageBubble({
             </motion.div>
           )}
 
-          <div className={`flex items-center mt-1 text-xs text-gray-500 ${isMine ? 'justify-end' : 'justify-start'}`}>
+          <div className={`flex items-center mt-0.5 text-[10px] text-gray-400 select-none ${isMine ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
             {isMine && renderStatusIcon()}
-            <span className="mx-1">{formattedTime}</span>
+            <span>{formattedTime}</span>
           </div>
 
           {renderReactions()}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

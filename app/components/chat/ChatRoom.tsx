@@ -303,7 +303,7 @@ export default function ChatRoom({
       </div>
       
       {/* メッセージエリア */}
-      <div className="flex-1 overflow-y-auto p-4 bg-white">
+      <div className="flex-1 overflow-y-auto p-4 pb-2 bg-white" style={{ paddingBottom: "20px" }}>
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-500">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -344,7 +344,8 @@ export default function ChatRoom({
         )}
         
         {renderTypingIndicator()}
-        <div ref={messagesEndRef} />
+        {/* メッセージの最後に十分な余白を追加して、自分のメッセージが入力欄に隠れないようにする */}
+        <div ref={messagesEndRef} className="h-24 md:h-32" />
       </div>
       
       {/* 入力エリア */}

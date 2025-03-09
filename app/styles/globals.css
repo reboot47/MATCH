@@ -13,13 +13,66 @@
   --gold-color: 245, 158, 11;
 }
 
+/* モバイルでのフォーカス枠を無効化 */
+input,
+textarea,
+select,
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+  outline: none;
+}
+
+/* iOSでの入力枠の青いハイライトを無効化 */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* iOS用のフォーカス枠の追加対策 */
+textarea,
+input[type="text"],
+input[type="password"],
+input[type="datetime"],
+input[type="datetime-local"],
+input[type="date"],
+input[type="month"],
+input[type="time"],
+input[type="week"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="search"],
+input[type="tel"],
+input[type="color"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* iOSでの自動ズームを防止 */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
     --background-start-rgb: 31, 41, 55;
     --background-end-rgb: 17, 24, 39;
   }
+
 }
+
 
 body {
   color: rgb(var(--foreground-rgb));
@@ -29,8 +82,10 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+  -webkit-tap-highlight-color: transparent;
   font-family: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
 }
+
 
 /* カスタムユーティリティクラス */
 @layer components {
@@ -38,92 +93,113 @@ body {
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 rounded-full font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors;
   }
+
   
   .btn-primary {
     @apply bg-teal-500 text-white hover:bg-teal-600 focus:ring-teal-500;
   }
+
   
   .btn-secondary {
     @apply bg-rose-500 text-white hover:bg-rose-600 focus:ring-rose-500;
   }
+
   
   .btn-gold {
     @apply bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500;
   }
+
   
   .btn-outline {
     @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-teal-500;
   }
+
   
   .btn-ghost {
     @apply text-gray-700 hover:bg-gray-100 focus:ring-gray-500;
   }
+
   
   /* バッジ */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
+
   
   .badge-primary {
     @apply bg-teal-100 text-teal-800;
   }
+
   
   .badge-secondary {
     @apply bg-rose-100 text-rose-800;
   }
+
   
   .badge-gold {
     @apply bg-amber-100 text-amber-800;
   }
+
   
   /* カード */
   .card {
     @apply bg-white rounded-lg overflow-hidden shadow-sm border border-gray-100;
   }
+
   
   /* 入力フォーム */
   .form-input {
     @apply appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm;
   }
+
   
   /* 切り替えタブ */
   .tab-group {
     @apply flex space-x-1 p-1 bg-gray-100 rounded-lg;
   }
+
   
   .tab {
     @apply w-full py-2 text-sm leading-5 font-medium text-gray-700 rounded-md focus:outline-none focus:ring-2 ring-offset-2 ring-offset-teal-400 ring-white ring-opacity-60 transition-colors;
   }
+
   
   .tab-active {
     @apply bg-white shadow text-teal-600;
   }
+
   
   /* アバター */
   .avatar {
     @apply relative rounded-full overflow-hidden bg-gray-100;
   }
+
   
   /* プロフィールカード */
   .profile-card {
     @apply relative rounded-lg overflow-hidden shadow-sm border border-gray-100;
   }
+
   
   /* メッセージ吹き出し */
   .message-bubble-sent {
     @apply bg-teal-100 text-gray-800 p-3 rounded-2xl rounded-tr-none;
   }
+
   
   .message-bubble-received {
     @apply bg-white text-gray-800 p-3 rounded-2xl rounded-tl-none border border-gray-200;
   }
+
 }
+
 
 /* 日本語固有スタイル調整 */
 .japanese-vertical-text {
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }
+
 
 /* iOSスタイルのスイッチ */
 .toggle-switch {
@@ -133,11 +209,13 @@ body {
   height: 28px;
 }
 
+
 .toggle-switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
+
 
 .toggle-switch-slider {
   position: absolute;
@@ -150,6 +228,7 @@ body {
   transition: .4s;
   border-radius: 34px;
 }
+
 
 .toggle-switch-slider:before {
   position: absolute;
@@ -164,31 +243,39 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
+
 input:checked + .toggle-switch-slider {
   background-color: #14b8a6;
 }
+
 
 input:focus + .toggle-switch-slider {
   box-shadow: 0 0 1px #14b8a6;
 }
 
+
 input:checked + .toggle-switch-slider:before {
   transform: translateX(22px);
 }
+
 
 /* Loading Skeleton */
 .skeleton {
   animation: skeleton-loading 1s linear infinite alternate;
 }
 
+
 @keyframes skeleton-loading {
   0% {
     background-color: rgba(229, 231, 235, 0.7);
   }
+
   100% {
     background-color: rgba(209, 213, 219, 0.9);
   }
+
 }
+
 
 /* スクロールバー調整 */
 ::-webkit-scrollbar {
@@ -196,16 +283,20 @@ input:checked + .toggle-switch-slider:before {
   height: 6px;
 }
 
+
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 10px;
 }
+
 
 ::-webkit-scrollbar-thumb {
   background: #888;
   border-radius: 10px;
 }
 
+
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
