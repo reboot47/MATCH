@@ -50,7 +50,7 @@ const mockChats = [
 
 export default function ChatPage() {
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen flex flex-col">
+    <div className="w-full max-w-screen-lg mx-auto bg-white min-h-screen flex flex-col">
       <motion.header 
         className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3"
         initial={{ opacity: 0, y: -10 }}
