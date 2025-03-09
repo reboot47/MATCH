@@ -13,6 +13,58 @@ function hashPassword(password: string): string {
   return sha256(password + salt);
 }
 
+// セッション診断ユーティリティ
+export const diagnostics = {
+  // セッション診断情報を返す
+  getSessionInfo: (session: any, token: any = null) => {
+    return {
+      sessionExists: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id || null,
+      email: session?.user?.email || null,
+      name: session?.user?.name || null,
+      role: session?.user?.role || null,
+      tokenInfo: token ? {
+        sub: token?.sub || null,
+        jti: token?.jti || null,
+        iat: token?.iat ? new Date(token.iat * 1000).toISOString() : null,
+        exp: token?.exp ? new Date(token.exp * 1000).toISOString() : null,
+        hasRole: !!token?.role,
+      } : null,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+    };
+  },
+  
+  // セッションエラーを分析
+  analyzeSessionError: (error: any) => {
+    const errorInfo = {
+      name: error?.name || 'UnknownError',
+      message: error?.message || 'No error message available',
+      stack: process.env.NODE_ENV === 'development' ? error?.stack : null,
+      type: 'unknown',
+      recommendation: '',
+    };
+    
+    // エラータイプの特定
+    if (error?.message?.includes('fetch')) {
+      errorInfo.type = 'CLIENT_FETCH_ERROR';
+      errorInfo.recommendation = 'Check NEXTAUTH_URL and NEXTAUTH_URL_INTERNAL environment variables';
+    } else if (error?.message?.includes('JWT')) {
+      errorInfo.type = 'JWT_ERROR';
+      errorInfo.recommendation = 'JWT may be expired or invalid. Try clearing cookies and signing in again';
+    } else if (error?.message?.includes('CSRF')) {
+      errorInfo.type = 'CSRF_ERROR';
+      errorInfo.recommendation = 'Ensure the request includes the correct CSRF token';
+    } else if (error?.message?.includes('database')) {
+      errorInfo.type = 'DATABASE_ERROR';
+      errorInfo.recommendation = 'Check database connection and credentials';
+    }
+    
+    return errorInfo;
+  }
+};
+
 // モックユーザーデータ
 const mockUsers = [
   {
@@ -51,6 +103,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      },
     }),
     Credentials({
       name: "Credentials",
@@ -69,7 +128,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
         
-        const isPasswordValid = hashPassword(credentials.password) === user.hashedPassword;
+        const isPasswordValid = credentials.password ? hashPassword(credentials.password) === user.hashedPassword : false;
         
         if (!isPasswordValid) {
           return null;
@@ -122,4 +181,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: { strategy: "jwt" },
   debug: process.env.NODE_ENV === "development",
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV !== "development"
+      }
+    }
+  }
 });
