@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiChevronLeft, FiCheck } from 'react-icons/fi';
-import { navigateBackWithScrollPosition } from '@/app/utils/scrollPosition';
+import { navigateBackWithScrollPosition } from '@/utils/scrollPosition';
 
 export default function BloodTypeEditPage() {
   const router = useRouter();

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiChevronLeft, FiCheck, FiSearch } from 'react-icons/fi';
-import { navigateBackWithScrollPosition } from '@/app/utils/scrollPosition';
+import { navigateBackWithScrollPosition } from '@/utils/scrollPosition';
 
 export default function OccupationEditPage() {
   const router = useRouter();

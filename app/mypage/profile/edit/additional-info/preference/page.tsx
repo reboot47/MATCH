@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiChevronLeft, FiCheck } from 'react-icons/fi';
-import { saveScrollPosition, restoreScrollPosition } from '@/app/utils/scrollPosition';
+import { saveScrollPosition, restoreScrollPosition } from '@/utils/scrollPosition';
 
 export default function MeetingPreferencePage() {
   const router = useRouter();

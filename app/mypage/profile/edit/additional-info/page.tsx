@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { useUser } from '@/components/UserContext';
-import { saveScrollPosition, restoreScrollPosition, navigateWithScrollPosition, navigateBackWithScrollPosition } from '@/app/utils/scrollPosition';
+import { saveScrollPosition, restoreScrollPosition, navigateWithScrollPosition, navigateBackWithScrollPosition } from '@/utils/scrollPosition';
 
 // その他情報の型定義
 type AdditionalInfo = {
