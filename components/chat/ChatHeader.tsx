@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { BsCalendar } from 'react-icons/bs';
+import { BsCalendar, BsStar, BsStarFill, BsVolumeUp, BsVolumeMute, BsShield, BsXCircle, BsPencilSquare } from 'react-icons/bs';
+import { useRouter } from 'next/navigation';
 
 interface ChatHeaderProps {
   partnerName: string;
@@ -14,19 +15,52 @@ interface ChatHeaderProps {
   onCallClick?: () => void;
   onVideoClick?: () => void;
   onAppointmentClick?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  onReportUser?: () => void;
+  onBlockUser?: () => void;
+  onMuteUser?: () => void;
+  isMuted?: boolean;
+  partnerId?: string;
 }
 
-const ChatHeader: React.FC<ChatHeaderProps> = ({
-  partnerName,
-  partnerAvatar,
-  isOnline = false,
-  lastSeen,
-  onBackClick,
-  onInfoClick,
-  onCallClick,
-  onVideoClick,
-  onAppointmentClick,
-}) => {
+const ChatHeader: React.FC<ChatHeaderProps> = (props) => {
+  // 安全にプロパティを分解し、デフォルト値を設定
+  const {
+    partnerName = '名前なし',
+    partnerAvatar = '',
+    isOnline = false,
+    lastSeen = '',
+    onBackClick = () => {},
+    onInfoClick = () => {},
+    onCallClick = () => {},
+    onVideoClick = () => {},
+    onAppointmentClick,
+    isFavorite = false,
+    onToggleFavorite = () => {},
+    onReportUser = () => {},
+    onBlockUser = () => {},
+    onMuteUser = () => {},
+    isMuted = false,
+    partnerId = '',
+  } = props;
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  
+  // メニュー外クリックでメニューを閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   return (
     <motion.header
       className="flex items-center px-4 py-3 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 max-w-md mx-auto z-50"
@@ -141,11 +175,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {onInfoClick && (
+        <div className="relative" ref={menuRef}>
           <button
-            onClick={onInfoClick}
+            onClick={() => setShowMenu(!showMenu)}
             className="p-2 text-gray-600 hover:text-primary-500 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="詳細情報"
+            aria-label="メニュー"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -163,7 +197,132 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <circle cx="12" cy="19" r="1"></circle>
             </svg>
           </button>
-        )}
+          
+          {/* ドロップダウンメニュー */}
+          {showMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try {
+                    onToggleFavorite();
+                  } catch (error) {
+                    console.error('Failed to toggle favorite', error);
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                {isFavorite ? (
+                  <>
+                    <BsStarFill className="text-yellow-400 mr-2" />お気に入りから削除
+                  </>
+                ) : (
+                  <>
+                    <BsStar className="mr-2" />お気に入りに追加
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try {
+                    onMuteUser();
+                  } catch (error) {
+                    console.error('Failed to toggle mute', error);
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                {isMuted ? (
+                  <>
+                    <BsVolumeUp className="mr-2" />ミュート解除
+                  </>
+                ) : (
+                  <>
+                    <BsVolumeMute className="mr-2" />ミュート
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try {
+                    onReportUser();
+                  } catch (error) {
+                    console.error('Failed to report user', error);
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                <BsShield className="mr-2" />報告する
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`${partnerName}さんをブロックしますか？ブロックすると、このユーザーからのメッセージを受信できなくなります。`)) {
+                    try {
+                      onBlockUser();
+                    } catch (error) {
+                      console.error('Failed to block user', error);
+                    }
+                    setShowMenu(false);
+                  }
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+              >
+                <BsXCircle className="mr-2" />ブロック
+              </button>
+
+              {/* メモボタン */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(false);
+                  // メモページに遷移する
+                  router.push('/memo/new?title=' + encodeURIComponent(`${partnerName}とのメモ`));
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                <BsPencilSquare className="mr-2" />メモを作成
+              </button>
+              
+              {onInfoClick && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInfoClick();
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mr-2"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                  プロフィール詳細
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </motion.header>
   );

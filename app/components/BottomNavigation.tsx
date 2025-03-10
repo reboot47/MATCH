@@ -14,7 +14,7 @@ import {
   HiVideoCamera,
   HiUser
 } from "react-icons/hi";
-import { FaHeart, FaRegHeart, FaCalendarAlt, FaRegCalendarAlt } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaCalendarAlt, FaRegCalendarAlt, FaStickyNote, FaRegStickyNote } from "react-icons/fa";
 
 export default function BottomNavigation() {
   const pathname = usePathname();

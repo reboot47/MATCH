@@ -99,6 +99,10 @@ export interface Participant {
   joinedAt: Date;
   leftAt?: Date;
   isAdmin: boolean;
+  name?: string; // ユーザー名
+  age?: number; // 年齢
+  location?: string; // 場所
+  profileImage?: string; // プロフィール画像
   lastReadMessageId?: string;
 }
 

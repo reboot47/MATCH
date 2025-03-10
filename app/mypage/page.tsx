@@ -132,9 +132,9 @@ export default function MyPage() {
             
             <div className="mt-3 flex items-center">
               <h2 className="text-xl font-bold">yuki</h2>
-              <button className="ml-2 text-teal-500">
+              <Link href="/mypage/profile/new-edit" className="ml-2 text-teal-500">
                 <HiOutlinePencil />
-              </button>
+              </Link>
             </div>
             
             {/* 年齢未確認バッジ - 女性のみ */}

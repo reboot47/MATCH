@@ -135,6 +135,11 @@ export default function ChatDetail({ params }: ChatParams) {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showUnreadJumpButton, setShowUnreadJumpButton] = useState<boolean>(false);
   
+  // お気に入り機能のための状態
+  const [isFavorite, setIsFavorite] = useState<boolean>(false);
+  // ミュート機能のための状態
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  
   // ポイントシステム用の状態
   const [currentPoints, setCurrentPoints] = useState<number>(100); // 初期ポイント
   const requiredPoints = 5; // 基本メッセージ送信に必要なポイント
@@ -373,7 +378,7 @@ export default function ChatDetail({ params }: ChatParams) {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           isMe: false,
           isRead: true,
-          avatar: mockUser.avatar,
+          avatar: mockUser?.avatar || '',
           // 時々返信をつける
           replyTo: Math.random() > 0.5 ? {
             id: newMessage.id,
@@ -684,18 +689,133 @@ export default function ChatDetail({ params }: ChatParams) {
   // デバッグ用にチャットインターフェースをコンソールに出力
   console.log('Rendering chat page, replyingTo:', replyingTo);
 
+  // お気に入り追加/削除ハンドラー
+  const handleToggleFavorite = useCallback(() => {
+    setIsFavorite(prev => !prev); // 単純に状態を変更するのみ
+  }, []);
+  
+  // お気に入り状態変更トースト
+  const [prevFavoriteState, setPrevFavoriteState] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    // 初回レンダリングをスキップ
+    if (prevFavoriteState === null) {
+      setPrevFavoriteState(isFavorite);
+      return;
+    }
+    
+    // 状態が変化した場合のみトーストを表示
+    if (prevFavoriteState !== isFavorite) {
+      try {
+        const userName = mockUser?.name || 'ユーザー';
+        if (isFavorite) {
+          toast.success(`${userName}さんをお気に入りに追加しました`, { duration: 2000 });
+        } else {
+          toast.success(`${userName}さんをお気に入りから削除しました`, { duration: 2000 });
+        }
+      } catch (error) {
+        console.error('Failed to show toast', error);
+      }
+      setPrevFavoriteState(isFavorite);
+    }
+  }, [isFavorite]);
+
+  // ミュート/ミュート解除ハンドラー
+  const handleMuteUser = useCallback(() => {
+    setIsMuted(prev => !prev); // 単純に状態を変更するのみ
+  }, []);
+  
+  // ミュート状態変更トースト
+  const [prevMutedState, setPrevMutedState] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    // 初回レンダリングをスキップ
+    if (prevMutedState === null) {
+      setPrevMutedState(isMuted);
+      return;
+    }
+    
+    // 状態が変化した場合のみトーストを表示
+    if (prevMutedState !== isMuted) {
+      try {
+        const userName = mockUser?.name || 'ユーザー';
+        if (isMuted) {
+          toast.success(`${userName}さんをミュートしました`, { duration: 2000 });
+        } else {
+          toast.success(`${userName}さんのミュートを解除しました`, { duration: 2000 });
+        }
+      } catch (error) {
+        console.error('Failed to show toast', error);
+      }
+      setPrevMutedState(isMuted);
+    }
+  }, [isMuted]);
+
+  // 報告ハンドラー
+  const [reportRequested, setReportRequested] = useState<boolean>(false);
+
+  const handleReportUser = useCallback(() => {
+    setReportRequested(true);
+    // ここに実際の報告処理を追加
+  }, []);
+  
+  // 報告トースト
+  useEffect(() => {
+    if (reportRequested) {
+      try {
+        const userName = mockUser?.name || 'ユーザー';
+        toast.success(`${userName}さんを報告しました。運営チームが確認します`, { duration: 2000 });
+      } catch (error) {
+        console.error('Failed to show report toast', error);
+      }
+      setReportRequested(false);
+    }
+  }, [reportRequested]);
+
+  // ブロックハンドラー
+  const [blockRequested, setBlockRequested] = useState<boolean>(false);
+  
+  const handleBlockUser = useCallback(() => {
+    setBlockRequested(true);
+    // ここに実際のブロック処理を追加
+  }, []);
+  
+  // ブロックトースト
+  useEffect(() => {
+    if (blockRequested) {
+      try {
+        const userName = mockUser?.name || 'ユーザー';
+        toast.success(`${userName}さんをブロックしました`, { duration: 2000 });
+      } catch (error) {
+        console.error('Failed to show block toast', error);
+      }
+      setBlockRequested(false);
+    }
+  }, [blockRequested]);
+
+  // 安全にChatHeaderに渡すプロパティを事前に計算
+  const chatHeaderProps = {
+    partnerName: mockUser?.name || '名前なし',
+    partnerAvatar: mockUser?.avatar || '',
+    isOnline: mockUser?.isOnline || false,
+    lastSeen: mockUser?.lastSeen || '',
+    onBackClick: handleBackClick,
+    onCallClick: () => console.log('Call clicked'),
+    onVideoClick: () => console.log('Video clicked'),
+    onInfoClick: () => console.log('Info clicked'),
+    onAppointmentClick: () => setIsAppointmentModalOpen(true),
+    isFavorite,
+    onToggleFavorite: handleToggleFavorite,
+    onReportUser: handleReportUser,
+    onBlockUser: handleBlockUser,
+    onMuteUser: handleMuteUser,
+    isMuted,
+    partnerId: chatId // チャットIDをパートナーIDとして渡す
+  };
+  
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen flex flex-col relative z-0">
-      <ChatHeader
-        partnerName={mockUser.name}
-        isOnline={mockUser.isOnline}
-        lastSeen={mockUser.lastSeen}
-        onBackClick={handleBackClick}
-        onCallClick={() => console.log('Call clicked')}
-        onVideoClick={() => console.log('Video clicked')}
-        onInfoClick={() => console.log('Info clicked')}
-        onAppointmentClick={() => setIsAppointmentModalOpen(true)}
-      />
+      <ChatHeader {...chatHeaderProps} />
 
       {/* チャットコンテンツ - 高さを固定し、スクロールを有効化 */}
       <div 
@@ -880,10 +1000,10 @@ export default function ChatDetail({ params }: ChatParams) {
         <div id="typing-indicator" className={`absolute top-0 left-0 right-0 -translate-y-full transition-all duration-300 ${isTyping ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className="flex items-center p-2 bg-white border-t border-gray-200 shadow-sm">
             <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden mr-2 border border-gray-200">
-              <img src={mockUser.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={mockUser?.avatar || '/images/avatar-placeholder.jpg'} alt="Avatar" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col items-start">
-              <span className="text-xs font-medium text-gray-700">{mockUser.name}</span>
+              <span className="text-xs font-medium text-gray-700">{mockUser?.name || '名前なし'}</span>
               <div className="flex items-center mt-0.5">
                 <span className="inline-block w-2 h-2 bg-[#06c755] rounded-full animate-[bounce_0.8s_infinite]"></span>
                 <span className="inline-block mx-0.5 w-2 h-2 bg-[#06c755] rounded-full animate-[bounce_0.8s_0.2s_infinite]"></span>
@@ -900,8 +1020,8 @@ export default function ChatDetail({ params }: ChatParams) {
         isOpen={isAppointmentModalOpen}
         onClose={() => setIsAppointmentModalOpen(false)}
         partnerId={chatId}
-        partnerName={mockUser.name}
-        partnerImage={mockUser.avatar || '/images/avatar-placeholder.jpg'}
+        partnerName={mockUser?.name || '名前なし'}
+        partnerImage={mockUser?.avatar || '/images/avatar-placeholder.jpg'}
       />
     </div>
   );

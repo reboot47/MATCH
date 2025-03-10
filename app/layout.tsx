@@ -7,6 +7,7 @@ import { UserProvider } from "./contexts/UserContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { MissionProvider } from "./contexts/MissionContext";
 import { BoostProvider } from "./contexts/BoostContext";
+import { FavoritesProvider } from "./components/FavoritesContext";
 
 // 日英両対応フォントの設定
 const inter = Inter({
@@ -78,9 +79,11 @@ export default function RootLayout({
             <NotificationProvider>
               <MissionProvider>
                 <BoostProvider>
-                  <div className="mx-auto max-w-7xl">
-                    {children}
-                  </div>
+                  <FavoritesProvider>
+                    <div className="mx-auto max-w-7xl">
+                      {children}
+                    </div>
+                  </FavoritesProvider>
                 </BoostProvider>
               </MissionProvider>
             </NotificationProvider>
