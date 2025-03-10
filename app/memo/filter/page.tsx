@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FiChevronLeft, FiCheck } from 'react-icons/fi';
 
@@ -17,7 +17,8 @@ const categories = [
   "お会い済み"
 ];
 
-export default function MemoFilterPage() {
+// useSearchParamsを使用するコンポーネントを分離
+function FilterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentFilter, setCurrentFilter] = useState<string>('すべて');
@@ -70,5 +71,13 @@ export default function MemoFilterPage() {
         </ul>
       </div>
     </div>
+  );
+}
+
+export default function MemoFilterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">読み込み中...</div>}>
+      <FilterContent />
+    </Suspense>
   );
 }
