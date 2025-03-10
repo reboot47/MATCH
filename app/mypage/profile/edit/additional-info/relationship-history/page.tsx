@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiChevronLeft, FiCheck } from 'react-icons/fi';
 import { navigateBackWithScrollPosition } from '@/utils/scrollPosition';
-import { UserContext } from '@/app/components/UserContext';
+import { UserContext } from '@/components/UserContext';
 
 export default function RelationshipHistoryEditPage() {
   const router = useRouter();
