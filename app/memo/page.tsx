@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { FiChevronLeft, FiPlus, FiMoreVertical, FiEdit2, FiTrash2 } from 'react-icons/fi';
@@ -16,14 +16,24 @@ interface Memo {
   updatedAt: string;
 }
 
+// メインコンポーネント - Suspenseラッパー
 export default function MemoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">読み込み中...</div>}>
+      <MemoContent />
+    </Suspense>
+  );
+}
+
+// useSearchParamsを使用するコンテンツコンポーネント
+function MemoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [memos, setMemos] = useState<Memo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMemo, setSelectedMemo] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState<string>('すべて');
-
+  
   // URLクエリパラメータからフィルターを取得
   useEffect(() => {
     const filter = searchParams.get('filter');
@@ -113,7 +123,7 @@ export default function MemoPage() {
       
       setIsLoading(false);
     }, 500);
-  }, []);
+  }, [currentFilter]);
 
   // メモを追加する関数
   const handleAddMemo = () => {
