@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiChevronLeft, FiEdit2, FiShare, FiMoreVertical, FiTrash2 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
@@ -20,6 +20,8 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
   const [memo, setMemo] = useState<Memo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // メモデータの取得（モック）
   useEffect(() => {
@@ -170,25 +172,25 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       // メニューボタンとメニュー自体のクリック以外でメニューを閉じる
-      const menuButton = document.getElementById('memo-menu-button');
-      const menuContent = document.getElementById('memo-menu-content');
-      
       if (
-        menuButton && 
-        !menuButton.contains(e.target as Node) && 
-        menuContent && 
-        !menuContent.contains(e.target as Node)
+        menuRef.current && 
+        menuButtonRef.current &&
+        !menuRef.current.contains(e.target as Node) && 
+        !menuButtonRef.current.contains(e.target as Node)
       ) {
         setShowMenu(false);
       }
     };
     
-    // キャプチャフェーズでイベントを処理（バブリングよりも先）
-    document.addEventListener('click', handleClickOutside, true);
+    if (showMenu) {
+      // メニューが表示されているときのみイベントリスナーを追加
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
     return () => {
-      document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [showMenu]);
 
   if (isLoading) {
     return (
@@ -230,22 +232,22 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
             </button>
             <div className="relative">
               <button 
-                id="memo-menu-button"
+                ref={menuButtonRef}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
                   setShowMenu(!showMenu);
                 }}
+                aria-label="メニューを開く"
               >
                 <FiMoreVertical size={20} />
               </button>
               
               {showMenu && (
                 <div 
-                  id="memo-menu-content"
+                  ref={menuRef}
                   className="absolute right-0 top-10 bg-white rounded-lg shadow-lg py-2 z-50 w-48 border border-gray-200"
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <button 
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
