@@ -19,9 +19,10 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const [memo, setMemo] = useState<Memo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  // メニュー状態を「編集」「共有」「削除」の3つに分ける（シンプルなアプローチ）
+  const [showEditOption, setShowEditOption] = useState(false);
+  const [showShareOption, setShowShareOption] = useState(false);
+  const [showDeleteOption, setShowDeleteOption] = useState(false);
 
   // メモデータの取得（モック）
   useEffect(() => {
@@ -165,32 +166,33 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
       });
     }
     
-    setShowMenu(false);
+    // すべてのオプションを非表示に
+    setShowShareOption(false);
   };
 
-  // メニュー以外をクリックした時にメニューを閉じる
+  // すべてのオプションを非表示にする関数
+  const closeAllOptions = () => {
+    setShowEditOption(false);
+    setShowShareOption(false);
+    setShowDeleteOption(false);
+  };
+  
+  // 画面タップ時にすべてのオプションを閉じる（シンプルなアプローチ）
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      // メニューボタンとメニュー自体のクリック以外でメニューを閉じる
-      if (
-        menuRef.current && 
-        menuButtonRef.current &&
-        !menuRef.current.contains(e.target as Node) && 
-        !menuButtonRef.current.contains(e.target as Node)
-      ) {
-        setShowMenu(false);
-      }
+    const handleGlobalClick = () => {
+      // 少し遅延を入れることで、ボタンクリックイベントが先に処理されるようにする
+      setTimeout(() => {
+        closeAllOptions();
+      }, 100);
     };
     
-    if (showMenu) {
-      // メニューが表示されているときのみイベントリスナーを追加
-      document.addEventListener('mousedown', handleClickOutside);
+    // どれかのオプションが表示されている場合のみイベントリスナーを追加
+    if (showEditOption || showShareOption || showDeleteOption) {
+      window.addEventListener('click', handleGlobalClick);
+      return () => window.removeEventListener('click', handleGlobalClick);
     }
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMenu]);
+    return undefined;
+  }, [showEditOption, showShareOption, showDeleteOption]);
 
   if (isLoading) {
     return (
@@ -224,48 +226,83 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
             <FiChevronLeft size={24} />
           </button>
           <div className="ml-auto flex items-center space-x-2">
+            {/* 編集ボタン - クリックでドロップダウンではなく直接移動 */}
             <button 
               className="p-2 text-gray-500 hover:text-gray-700 rounded-full"
-              onClick={() => router.push(`/memo/${memo.id}/edit`)}
+              onClick={() => memo && router.push(`/memo/${memo.id}/edit`)}
             >
               <FiEdit2 size={20} />
             </button>
-            <div className="relative">
-              <button 
-                ref={menuButtonRef}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  setShowMenu(!showMenu);
-                }}
-                aria-label="メニューを開く"
-              >
-                <FiMoreVertical size={20} />
-              </button>
-              
-              {showMenu && (
-                <div 
-                  ref={menuRef}
-                  className="absolute right-0 top-10 bg-white rounded-lg shadow-lg py-2 z-50 w-48 border border-gray-200"
-                >
-                  <button 
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    onClick={handleShare}
-                  >
-                    <FiShare className="mr-2" />
-                    共有
-                  </button>
-                  <button 
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-500 hover:bg-gray-100"
-                    onClick={handleDelete}
-                  >
-                    <FiTrash2 className="mr-2" />
-                    削除
-                  </button>
+            
+            {/* 共有ボタン - 専用ボタンとして表示 */}
+            <button 
+              className="p-2 text-gray-500 hover:text-gray-700 rounded-full relative"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeAllOptions(); // 他のオプションを閉じる
+                // このボタンに対応するオプションのみトグル
+                setShowShareOption(!showShareOption);
+              }}
+            >
+              <FiShare size={20} />
+              {showShareOption && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30">
+                  <div className="bg-white rounded-lg p-6 w-4/5 max-w-sm z-50">
+                    <h3 className="text-xl font-semibold mb-4">共有</h3>
+                    <p className="mb-4">このメモを共有しますか？</p>
+                    <div className="flex justify-end space-x-2">
+                      <button 
+                        className="px-4 py-2 bg-gray-200 rounded-md"
+                        onClick={() => setShowShareOption(false)}
+                      >
+                        キャンセル
+                      </button>
+                      <button 
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                        onClick={handleShare}
+                      >
+                        共有する
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
+            </button>
+            
+            {/* 削除ボタン - 専用ボタンとして表示 */}
+            <button 
+              className="p-2 text-gray-500 hover:text-gray-700 rounded-full relative"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeAllOptions(); // 他のオプションを閉じる
+                // このボタンに対応するオプションのみトグル
+                setShowDeleteOption(!showDeleteOption);
+              }}
+            >
+              <FiTrash2 size={20} />
+              {showDeleteOption && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30">
+                  <div className="bg-white rounded-lg p-6 w-4/5 max-w-sm z-50">
+                    <h3 className="text-xl font-semibold mb-4 text-red-500">削除の確認</h3>
+                    <p className="mb-4">このメモを削除してもよろしいですか？この操作は取り消せません。</p>
+                    <div className="flex justify-end space-x-2">
+                      <button 
+                        className="px-4 py-2 bg-gray-200 rounded-md"
+                        onClick={() => setShowDeleteOption(false)}
+                      >
+                        キャンセル
+                      </button>
+                      <button 
+                        className="px-4 py-2 bg-red-500 text-white rounded-md"
+                        onClick={handleDelete}
+                      >
+                        削除する
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -273,15 +310,15 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
       {/* メモ内容 */}
       <div className="flex-1 px-4 py-6">
         <h1 className="text-xl font-semibold mb-4">
-          {memo.title || '無題のメモ'}
+          {memo?.title || '無題のメモ'}
         </h1>
         
         <div className="text-xs text-gray-500 mb-6">
-          {memo.updatedAt ? `最終更新: ${memo.updatedAt}` : ''}
+          {memo?.updatedAt ? `最終更新: ${memo.updatedAt}` : ''}
         </div>
         
         <div className="text-base whitespace-pre-wrap">
-          {memo.content || '内容なし'}
+          {memo?.content || '内容なし'}
         </div>
       </div>
     </div>
