@@ -168,13 +168,25 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
 
   // メニュー以外をクリックした時にメニューを閉じる
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShowMenu(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      // メニューボタンとメニュー自体のクリック以外でメニューを閉じる
+      const menuButton = document.getElementById('memo-menu-button');
+      const menuContent = document.getElementById('memo-menu-content');
+      
+      if (
+        menuButton && 
+        !menuButton.contains(e.target as Node) && 
+        menuContent && 
+        !menuContent.contains(e.target as Node)
+      ) {
+        setShowMenu(false);
+      }
     };
     
-    document.addEventListener('click', handleClickOutside);
+    // キャプチャフェーズでイベントを処理（バブリングよりも先）
+    document.addEventListener('click', handleClickOutside, true);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('click', handleClickOutside, true);
     };
   }, []);
 
@@ -218,9 +230,11 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
             </button>
             <div className="relative">
               <button 
+                id="memo-menu-button"
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   setShowMenu(!showMenu);
                 }}
               >
@@ -229,6 +243,7 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
               
               {showMenu && (
                 <div 
+                  id="memo-menu-content"
                   className="absolute right-0 top-10 bg-white rounded-lg shadow-lg py-2 z-50 w-48 border border-gray-200"
                   onClick={(e) => e.stopPropagation()}
                 >
