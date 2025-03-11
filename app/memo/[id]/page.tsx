@@ -30,20 +30,91 @@ export default function MemoDetailPage({ params }: { params: Promise<{ id: strin
         // ここではモックデータ
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // モックデータを表示
-        if (resolvedParams.id === 'sample') {
-          setMemo({
+        // モックデータを定義
+        const mockMemos = [
+          {
+            id: '1',
+            title: 'タロウさんからの連絡先',
+            content: 'LINE ID: taro-2023\n電話番号: 090-XXXX-XXXX',
+            category: '未設定',
+            createdAt: '2025-03-01 10:00',
+            updatedAt: '2025-03-01 10:00'
+          },
+          {
+            id: '2',
+            title: 'ハナコさんの好きなもの',
+            content: 'スイーツ（特にチョコレート）\n映画鑑賞\nカフェ巡り',
+            category: 'お気に入り',
+            createdAt: '2025-03-03 15:30',
+            updatedAt: '2025-03-03 15:30'
+          },
+          {
+            id: '3',
+            title: '香港までの渡航情報',
+            content: '航空会社: ANA\n便名: NH1140\n出発: 15:30 成田\n到着: 19:00 香港',
+            category: '日程調整済み',
+            createdAt: '2025-03-05 09:15',
+            updatedAt: '2025-03-05 09:15'
+          },
+          {
+            id: '4',
+            title: 'サブスク解約するサービス',
+            content: 'Netflix\nAmazon Prime\nDisney+\nApple Music',
+            category: '要注意リスト',
+            createdAt: '2025-03-07 18:45',
+            updatedAt: '2025-03-07 18:45'
+          },
+          {
+            id: '5',
+            title: 'ジムようさんとの関係',
+            content: '初デート: 2025/2/15 六本木カフェ\n共通の趣味: レコードコレクション\n次回: レコード店巡り予定',
+            category: 'お会い済み',
+            createdAt: '2025-03-10 11:30',
+            updatedAt: '2025-03-10 11:30'
+          },
+          {
+            id: '6',
+            title: '金曜日の予定',
+            content: '19:00 - 渋谷で食事\n21:00 - カラオケ',
+            category: '日程調整中',
+            createdAt: '2025-03-10 12:00',
+            updatedAt: '2025-03-10 12:00'
+          },
+          {
+            id: '7',
+            title: 'プレゼント候補',
+            content: 'アロマキャンドル\n手作りクッキー\n観葉植物',
+            category: '気になる',
+            createdAt: '2025-03-10 14:20',
+            updatedAt: '2025-03-10 14:20'
+          },
+          {
+            id: '8',
+            title: '4月の東京出張',
+            content: '4/10-4/12\nホテル: ビジネスホテル東京\n打ち合わせ: 午後2時〜',
+            category: '日程調整前',
+            createdAt: '2025-03-10 15:00',
+            updatedAt: '2025-03-10 15:00'
+          },
+          {
             id: 'sample',
             title: 'サンプルメモ',
             content: 'これはサンプルメモの内容です。\n\n実際のアプリでは、ユーザーが作成したメモの内容が表示されます。',
+            category: 'サンプル',
             createdAt: '2025-03-09 15:30',
             updatedAt: '2025-03-09 16:45'
-          });
+          }
+        ];
+        
+        // 指定されたIDのメモを探す
+        const foundMemo = mockMemos.find(memo => memo.id === resolvedParams.id);
+        
+        if (foundMemo) {
+          setMemo(foundMemo);
         } else {
-          // APIからの取得に失敗したケース（モック）
-          // 実際の実装では、APIからデータを取得するか、ローカルストレージから取得します
+          // 存在しないIDの場合はメモ一覧にリダイレクト
+          toast.error('メモが見つかりませんでした');
           router.push('/memo');
-          // トースト通知を削除
         }
       } catch (error) {
         console.error('メモの取得に失敗しました', error);
