@@ -1,7 +1,8 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { FiX, FiUser, FiMail, FiMapPin, FiCalendar, FiClock, FiDollarSign, FiShield, FiFlag, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
 // モックデータ - ユーザー
 const mockUsers = [
@@ -20,6 +21,7 @@ const mockUsers = [
     points: 2500,
     subscription: 'プレミアム',
     reportCount: 0,
+    pendingApproval: false,
   },
   {
     id: 2,
@@ -36,6 +38,7 @@ const mockUsers = [
     points: 1800,
     subscription: 'なし',
     reportCount: 0,
+    pendingApproval: false,
   },
   {
     id: 3,
@@ -52,6 +55,7 @@ const mockUsers = [
     points: 5000,
     subscription: 'VIP',
     reportCount: 0,
+    pendingApproval: false,
   },
   {
     id: 4,
@@ -68,6 +72,7 @@ const mockUsers = [
     points: 1200,
     subscription: 'なし',
     reportCount: 0,
+    pendingApproval: false,
   },
   {
     id: 5,
@@ -84,6 +89,7 @@ const mockUsers = [
     points: 500,
     subscription: 'ベーシック',
     reportCount: 2,
+    pendingApproval: false,
   },
   {
     id: 6,
@@ -100,6 +106,7 @@ const mockUsers = [
     points: 800,
     subscription: 'なし',
     reportCount: 5,
+    pendingApproval: false,
   },
   {
     id: 7,
@@ -116,6 +123,7 @@ const mockUsers = [
     points: 3500,
     subscription: 'プレミアム',
     reportCount: 0,
+    pendingApproval: false,
   },
   {
     id: 8,
@@ -132,6 +140,24 @@ const mockUsers = [
     points: 2200,
     subscription: 'ベーシック',
     reportCount: 0,
+    pendingApproval: false,
+  },
+  {
+    id: 9,
+    name: '松本逸平',
+    nickname: 'Ippei',
+    email: 'ippei@example.com',
+    gender: 'male',
+    age: 24,
+    location: '神奈川県',
+    status: 'inactive',
+    verified: false,
+    createdAt: '2025-03-10',
+    lastLogin: '2025-03-10',
+    points: 0,
+    subscription: 'なし',
+    reportCount: 0,
+    pendingApproval: true,
   },
 ];
 
@@ -160,13 +186,378 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-export default function UsersAdminPage() {
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [filter, setFilter] = React.useState('all');
-  const [sort, setSort] = React.useState('newest');
+// ユーザー詳細モーダルコンポーネント
+type User = {
+  id: number;
+  name: string;
+  nickname: string;
+  email: string;
+  gender: string;
+  age: number;
+  location: string;
+  status: string;
+  verified: boolean;
+  createdAt: string;
+  lastLogin: string;
+  points: number;
+  subscription: string;
+  reportCount: number;
+  pendingApproval: boolean;
+};
+
+type UserDetailModalProps = {
+  user: User | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onStatusChange: (userId: number, newStatus: string) => void;
+  onDeleteUser: (userId: number) => void;
+  onApproveUser?: (userId: number) => void;
+};
+
+const UserDetailModal = ({ user, isOpen, onClose, onStatusChange, onDeleteUser, onApproveUser }: UserDetailModalProps) => {
+  if (!user || !isOpen) return null;
   
+  const statusOptions = [
+    { value: 'active', label: '有効', color: 'bg-green-500' },
+    { value: 'inactive', label: '無効', color: 'bg-gray-500' },
+    { value: 'suspended', label: '停止中', color: 'bg-red-500' }
+  ];
+  
+  const handleStatusChange = (newStatus: string) => {
+    onStatusChange(user.id, newStatus);
+  };
+
+  return (
+    <div className="modal-overlay">
+      <style jsx global>{`
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        }
+        .modal-container {
+          position: relative;
+          z-index: 10001;
+          max-width: 500px;
+          width: 100%;
+          margin: 0 auto;
+        }
+      `}</style>
+      <div className="modal-container">
+        <motion.div 
+          className="bg-white rounded-lg text-left overflow-hidden shadow-xl transform"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.3 }}
+        >
+          {/* モーダルヘッダー */}
+          <div className="bg-primary-600 px-4 py-3 sm:px-6 flex justify-between items-center">
+            <h3 className="text-lg leading-6 font-medium text-white flex items-center">
+              <FiUser className="mr-2" /> ユーザー詳細
+            </h3>
+            <button
+              onClick={onClose}
+              className="bg-primary-700 rounded-full p-1 text-white hover:bg-primary-800 focus:outline-none"
+            >
+              <FiX className="h-5 w-5" />
+            </button>
+          </div>
+          
+          {/* ユーザー基本情報 */}
+          <div className="px-4 py-5 sm:px-6">
+            <div className="flex items-center mb-4">
+              <div className={`h-16 w-16 rounded-full flex items-center justify-center text-white text-xl font-medium ${user.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'}`}>
+                {user.nickname.charAt(0)}
+              </div>
+              <div className="ml-4">
+                <h4 className="text-lg font-bold text-gray-900">{user.name}</h4>
+                <div className="flex items-center mt-1">
+                  <p className="text-sm text-gray-500">@{user.nickname}</p>
+                  {user.verified && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <FiCheckCircle className="mr-1" /> 認証済み
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* ユーザーステータス変更 */}
+            <div className="mb-6 border-t border-b border-gray-200 py-4">
+              <p className="text-sm font-medium text-gray-500 mb-2">アカウント状態:</p>
+              <div className="flex space-x-2">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStatusChange(option.value)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium ${user.status === option.value ? 'ring-2 ring-offset-2 ring-primary-500 ' + option.color + ' text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* 詳細情報 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-start">
+                <FiMail className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">メールアドレス</p>
+                  <p className="text-sm font-medium">{user.email}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <FiMapPin className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">所在地</p>
+                  <p className="text-sm font-medium">{user.location}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <FiCalendar className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">登録日</p>
+                  <p className="text-sm font-medium">{user.createdAt}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <FiClock className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">最終ログイン</p>
+                  <p className="text-sm font-medium">{user.lastLogin}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <FiDollarSign className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">ポイント残高</p>
+                  <p className="text-sm font-medium">{user.points.toLocaleString()} ポイント</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <FiShield className="h-5 w-5 text-gray-400 mt-0.5 mr-2" />
+                <div>
+                  <p className="text-xs text-gray-500">サブスクリプション</p>
+                  <p className="text-sm font-medium">{user.subscription}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* 通報情報 */}
+            {user.reportCount > 0 && (
+              <div className="mt-4 bg-red-50 p-3 rounded-md">
+                <div className="flex">
+                  <FiFlag className="h-5 w-5 text-red-400 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">通報 {user.reportCount}件</p>
+                    <p className="text-xs text-red-700 mt-1">このユーザーは他のユーザーから通報されています。詳細を確認してください。</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* 承認セクション - 承認待ちユーザーのみ表示 */}
+          {user.pendingApproval && onApproveUser && (
+            <div className="px-4 py-3 bg-yellow-50 border-t border-yellow-200">
+              <div className="flex items-center">
+                <FiCheckCircle className="h-5 w-5 text-yellow-500 mr-2" />
+                <p className="text-sm font-medium text-yellow-800">このユーザーは承認待ちです</p>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-md border border-transparent bg-yellow-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                  onClick={() => onApproveUser(user.id)}
+                >
+                  ユーザーを承認する
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* モーダルフッター */}
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={onClose}
+            >
+              閉じる
+            </button>
+            <button
+              type="button"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              詳細ログを表示
+            </button>
+            
+            {/* 削除ボタン */}
+            <button
+              type="button"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-red-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:w-auto sm:text-sm"
+              onClick={() => {
+                if (window.confirm(`本当に${user.name}（${user.nickname}）を削除しますか？この操作は取り消せません。`))
+                  onDeleteUser(user.id);
+              }}
+            >
+              ユーザーを削除
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default function UsersAdminPage() {
+  const [users, setUsers] = useState(mockUsers);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
+  
+  // ユーザー詳細モーダルを開く
+  const openUserDetail = (user: User) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
+  };
+
+  // モーダルを閉じる
+  const closeUserDetail = () => {
+    setIsModalOpen(false);
+    // 少し遅延させてからselectedUserをnullにする（アニメーション効果のため）
+    setTimeout(() => setSelectedUser(null), 300);
+  };
+
+  // ユーザーステータスの変更
+  const handleStatusChange = (userId: number, newStatus: string) => {
+    setActionInProgress(true);
+    
+    // 実際の実装ではAPIリクエストを行う
+    // この例ではモックデータを更新
+    setTimeout(() => {
+      try {
+        // ユーザー配列を更新
+        const updatedUsers = users.map(user => 
+          user.id === userId ? { ...user, status: newStatus } : user
+        );
+        
+        setUsers(updatedUsers);
+        
+        // 選択中のユーザーも更新
+        if (selectedUser && selectedUser.id === userId) {
+          setSelectedUser({ ...selectedUser, status: newStatus });
+        }
+        
+        // 成功メッセージを表示
+        setActionMessage({
+          text: `ユーザーのステータスを「${newStatus === 'active' ? '有効' : newStatus === 'inactive' ? '無効' : '停止中'}」に変更しました`,
+          type: 'success'
+        });
+        
+        // 3秒後にメッセージを消す
+        setTimeout(() => setActionMessage(null), 3000);
+      } catch (error) {
+        // エラーメッセージを表示
+        setActionMessage({
+          text: 'ステータスの更新中にエラーが発生しました。後でもう一度お試しください。',
+          type: 'error'
+        });
+      } finally {
+        setActionInProgress(false);
+      }
+    }, 600); // 実際のAPIリクエストを模倣するための遅延
+  };
+  
+  // ユーザー削除機能
+  const handleDeleteUser = (userId: number) => {
+    setActionInProgress(true);
+    
+    // 実際の実装ではAPIリクエストを行う
+    setTimeout(() => {
+      try {
+        // ユーザー配列から対象ユーザーを削除
+        const updatedUsers = users.filter(user => user.id !== userId);
+        setUsers(updatedUsers);
+        
+        // モーダルを閉じる
+        closeUserDetail();
+        
+        // 成功メッセージを表示
+        setActionMessage({
+          text: 'ユーザーが正常に削除されました',
+          type: 'success'
+        });
+        
+        setTimeout(() => setActionMessage(null), 3000);
+      } catch (error) {
+        setActionMessage({
+          text: 'ユーザーの削除中にエラーが発生しました。後でもう一度お試しください。',
+          type: 'error'
+        });
+      } finally {
+        setActionInProgress(false);
+      }
+    }, 600);
+  };
+  
+  // ユーザー承認機能
+  const handleApproveUser = (userId: number) => {
+    setActionInProgress(true);
+    
+    // 実際の実装ではAPIリクエストを行う
+    setTimeout(() => {
+      try {
+        // ユーザー配列を更新
+        const updatedUsers = users.map(user => 
+          user.id === userId ? { ...user, pendingApproval: false, status: 'active', verified: true } : user
+        );
+        
+        setUsers(updatedUsers);
+        
+        // 選択中のユーザーも更新
+        if (selectedUser && selectedUser.id === userId) {
+          setSelectedUser({ ...selectedUser, pendingApproval: false, status: 'active', verified: true });
+        }
+        
+        // 成功メッセージを表示
+        setActionMessage({
+          text: 'ユーザーが承認されました',
+          type: 'success'
+        });
+        
+        setTimeout(() => setActionMessage(null), 3000);
+      } catch (error) {
+        setActionMessage({
+          text: 'ユーザーの承認中にエラーが発生しました。後でもう一度お試しください。',
+          type: 'error'
+        });
+      } finally {
+        setActionInProgress(false);
+      }
+    }, 600);
+  };
+
   // フィルターされたユーザーリスト
-  const filteredUsers = mockUsers.filter(user => {
+  const filteredUsers = users.filter(user => {
     // 検索クエリによるフィルタリング
     const matchesSearch = 
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -182,6 +573,7 @@ export default function UsersAdminPage() {
       (filter === 'male' && user.gender === 'male') ||
       (filter === 'female' && user.gender === 'female') ||
       (filter === 'verified' && user.verified) ||
+      (filter === 'pending' && user.pendingApproval) ||
       (filter === 'reported' && user.reportCount > 0);
     
     return matchesSearch && matchesFilter;
@@ -209,6 +601,24 @@ export default function UsersAdminPage() {
         <h1 className="text-2xl font-bold text-gray-800">ユーザー管理</h1>
         <p className="text-gray-500 mt-1">ユーザー情報の確認と管理を行います</p>
       </div>
+      
+      {/* アクション通知メッセージ */}
+      {actionMessage && (
+        <motion.div 
+          className={`mb-4 rounded-lg p-4 flex items-center ${actionMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {actionMessage.type === 'success' ? (
+            <FiCheckCircle className="h-5 w-5 mr-3 text-green-500" />
+          ) : (
+            <FiXCircle className="h-5 w-5 mr-3 text-red-500" />
+          )}
+          <p>{actionMessage.text}</p>
+        </motion.div>
+      )}
 
       {/* フィルターと検索 */}
       <motion.div
@@ -229,6 +639,7 @@ export default function UsersAdminPage() {
                 <option value="active">有効なユーザー</option>
                 <option value="inactive">無効なユーザー</option>
                 <option value="suspended">停止中のユーザー</option>
+                <option value="pending">承認待ちユーザー</option>
                 <option value="male">男性</option>
                 <option value="female">女性</option>
                 <option value="verified">認証済みユーザー</option>
@@ -279,7 +690,7 @@ export default function UsersAdminPage() {
           {filteredUsers.map((user) => (
             <li key={user.id}>
               <div className="px-6 py-4 flex items-center">
-                <div className="min-w-0 flex-1 flex items-center">
+                <div className="min-w-0 flex-1 flex items-center cursor-pointer" onClick={() => openUserDetail(user)}>
                   <div className="flex-shrink-0">
                     <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white text-lg font-medium ${user.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'}`}>
                       {user.nickname.charAt(0)}
@@ -324,15 +735,21 @@ export default function UsersAdminPage() {
                   <button
                     type="button"
                     className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    onClick={() => openUserDetail(user)}
+                    title="ユーザー詳細を表示"
                   >
                     <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  {user.status !== 'suspended' ? (
+                  {user.status === 'active' ? (
                     <button
                       type="button"
                       className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      onClick={() => handleStatusChange(user.id, 'suspended')}
+                      disabled={actionInProgress}
+                      title="ユーザーを停止する"
                     >
                       <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
@@ -342,6 +759,9 @@ export default function UsersAdminPage() {
                     <button
                       type="button"
                       className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      onClick={() => handleStatusChange(user.id, 'active')}
+                      disabled={actionInProgress}
+                      title="ユーザーを有効化する"
                     >
                       <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -351,6 +771,9 @@ export default function UsersAdminPage() {
                   <button
                     type="button"
                     className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    onClick={() => handleStatusChange(user.id, 'inactive')}
+                    disabled={actionInProgress}
+                    title="ユーザーを無効化する"
                   >
                     <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -384,6 +807,16 @@ export default function UsersAdminPage() {
           </div>
         </div>
       </div>
+      
+      {/* ユーザー詳細モーダル */}
+      <UserDetailModal
+        user={selectedUser}
+        isOpen={isModalOpen}
+        onClose={closeUserDetail}
+        onStatusChange={handleStatusChange}
+        onDeleteUser={handleDeleteUser}
+        onApproveUser={handleApproveUser}
+      />
     </div>
   );
 }

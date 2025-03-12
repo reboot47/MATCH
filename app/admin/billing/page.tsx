@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { FiDollarSign, FiUsers, FiActivity, FiGift, FiPackage, FiStar, FiCreditCard, FiCalendar, FiArrowRight, FiRepeat } from 'react-icons/fi';
 
 // モックデータ - 課金プラン
 const billingPlans = [
@@ -174,26 +176,205 @@ const giftItems = [
   },
 ];
 
+// モックデータ - ダッシュボード統計
+const dashboardStats = {
+  totalRevenue: 12580000,  // 円
+  monthlyRevenue: 3450000,  // 円
+  activePlans: 3254,       // 件
+  pointsSold: 2450000,     // ポイント
+  activeFeatures: 12,      // 件
+  activeGifts: 15,         // 件
+  conversionRate: 8.5,     // %
+  avgRevenuePerUser: 3500,  // 円
+};
+
 export default function BillingAdminPage() {
   return (
     <div className="p-4 md:p-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">課金管理</h1>
-        <p className="text-gray-500 mt-1">課金プラン、ポイントパッケージ、特別機能の設定</p>
+        <p className="text-gray-500 mt-1">課金プラン、ポイントパッケージ、特別機能、ギフトの設定と管理</p>
       </div>
 
-      {/* サブスクリプションプラン設定 */}
+      {/* ダッシュボード統計 */}
       <motion.section
         className="mb-12"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                <FiDollarSign className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">今月の売上</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  ¥{dashboardStats.monthlyRevenue.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm text-green-600">前月比 +12.5%</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                <FiUsers className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">アクティブプラン</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardStats.activePlans.toLocaleString()} 件
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm text-green-600">前月比 +3.2%</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
+                <FiCreditCard className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">平均単価</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  ¥{dashboardStats.avgRevenuePerUser.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm text-green-600">前月比 +5.7%</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100 text-orange-600 mr-4">
+                <FiActivity className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">コンバージョン率</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardStats.conversionRate}%
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm text-red-600">前月比 -0.3%</p>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* 課金管理メニュー */}
+      <motion.section
+        className="mb-12"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Link href="/admin/billing/actions" className="block">
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full">
+              <div className="flex items-center mb-4">
+                <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                  <FiActivity className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800">課金アクション管理</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">ポイントを消費・獲得するユーザーアクションの設定と管理</p>
+              <div className="flex justify-end text-primary-600">
+                <FiArrowRight />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/admin/billing/plans" className="block">
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full">
+              <div className="flex items-center mb-4">
+                <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                  <FiPackage className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800">ポイントプラン管理</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">ポイントパッケージの設定と管理</p>
+              <div className="flex justify-end text-primary-600">
+                <FiArrowRight />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/admin/billing/subscriptions" className="block">
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full">
+              <div className="flex items-center mb-4">
+                <div className="p-3 rounded-full bg-indigo-100 text-indigo-600 mr-4">
+                  <FiRepeat className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800">サブスクリプション管理</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">月額・年額などの定期課金プランの設定と管理</p>
+              <div className="flex justify-end text-primary-600">
+                <FiArrowRight />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/admin/billing/features" className="block">
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full">
+              <div className="flex items-center mb-4">
+                <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
+                  <FiStar className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800">特別機能管理</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">プレミアム機能や特別アクセス権の設定と価格管理</p>
+              <div className="flex justify-end text-primary-600">
+                <FiArrowRight />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/admin/billing/gifts" className="block">
+            <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full">
+              <div className="flex items-center mb-4">
+                <div className="p-3 rounded-full bg-pink-100 text-pink-600 mr-4">
+                  <FiGift className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800">ギフト管理</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">ユーザー間で送信できるバーチャルギフトの設定と管理</p>
+              <div className="flex justify-end text-primary-600">
+                <FiArrowRight />
+              </div>
+            </div>
+          </Link>
+        </div>
+      </motion.section>
+
+      {/* サブスクリプションプラン概要 */}
+      <motion.section
+        className="mb-12"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+      >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">サブスクリプションプラン</h2>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
-            新規プラン追加
-          </button>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">サブスクリプションプラン概要</h2>
+            <p className="text-sm text-gray-500 mt-1">現在提供中のサブスクリプションプランの概要</p>
+          </div>
+          <Link href="/admin/billing/subscriptions" className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center">
+            <span>サブスクリプション管理</span>
+            <FiArrowRight className="ml-2" />
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -240,18 +421,22 @@ export default function BillingAdminPage() {
         </div>
       </motion.section>
 
-      {/* ポイントパッケージ設定 */}
+      {/* ポイントパッケージ概要 */}
       <motion.section
         className="mb-12"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">ポイントパッケージ</h2>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
-            新規パッケージ追加
-          </button>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">ポイントパッケージ概要</h2>
+            <p className="text-sm text-gray-500 mt-1">ユーザーが購入可能なポイントパッケージの概要</p>
+          </div>
+          <Link href="/admin/billing/plans" className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center">
+            <span>パッケージ管理</span>
+            <FiArrowRight className="ml-2" />
+          </Link>
         </div>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -303,18 +488,22 @@ export default function BillingAdminPage() {
         </div>
       </motion.section>
 
-      {/* 特別機能価格設定 */}
+      {/* 特別機能概要 */}
       <motion.section
         className="mb-12"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ duration: 0.3, delay: 0.4 }}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">特別機能価格設定</h2>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
-            新規機能追加
-          </button>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">特別機能概要</h2>
+            <p className="text-sm text-gray-500 mt-1">提供中のプレミアム機能と価格設定の概要</p>
+          </div>
+          <Link href="/admin/billing/features" className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center">
+            <span>機能管理</span>
+            <FiArrowRight className="ml-2" />
+          </Link>
         </div>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -372,17 +561,22 @@ export default function BillingAdminPage() {
         </div>
       </motion.section>
 
-      {/* ギフトアイテム設定 */}
+      {/* ギフトアイテム概要 */}
       <motion.section
+        className="mb-12"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
+        transition={{ duration: 0.3, delay: 0.5 }}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">ギフトアイテム設定</h2>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
-            新規ギフト追加
-          </button>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">ギフトアイテム概要</h2>
+            <p className="text-sm text-gray-500 mt-1">ユーザー間で送信可能なギフトアイテムの概要</p>
+          </div>
+          <Link href="/admin/billing/gifts" className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center">
+            <span>ギフト管理</span>
+            <FiArrowRight className="ml-2" />
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

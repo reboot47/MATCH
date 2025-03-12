@@ -6,10 +6,12 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 
+import { ReactNode } from 'react';
+
 interface NavItem {
   name: string;
   href: string;
-  icon: (props: { className: string }) => JSX.Element;
+  icon: (props: { className: string }) => ReactNode;
   subItems?: {
     name: string;
     href: string;
@@ -147,8 +149,11 @@ const navigation: NavItem[] = [
     href: '/admin/billing',
     icon: BillingIcon,
     subItems: [
-      { name: 'ポイント設定', href: '/admin/billing/points' },
-      { name: '課金プラン', href: '/admin/billing/plans' },
+      { name: '課金ダッシュボード', href: '/admin/billing' },
+      { name: '課金アクション', href: '/admin/billing/actions' },
+      { name: 'ポイントプラン', href: '/admin/billing/plans' },
+      { name: '特別機能', href: '/admin/billing/features' },
+      { name: 'ギフト管理', href: '/admin/billing/gifts' },
       { name: '取引履歴', href: '/admin/billing/transactions' }
     ]
   },
@@ -197,15 +202,15 @@ const AdminSidebar: React.FC = () => {
                 <div>
                   <button 
                     onClick={() => toggleExpand(item.name)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md group ${
+                    className={`w-full text-left flex items-center px-3 py-2 text-sm font-medium rounded-md group ${
                       isActive(item.href) ? 'bg-white/20 text-white' : 'text-white hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <item.icon className="mr-3 h-5 w-5 text-white/80 group-hover:text-white" />
-                    <span className="flex-1">{item.name}</span>
+                    <span>{item.name}</span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className={`ml-auto h-4 w-4 transition-transform ${expandedItem === item.name ? 'transform rotate-90' : ''}`}
+                      className={`ml-2 h-4 w-4 transition-transform ${expandedItem === item.name ? 'transform rotate-90' : ''}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -226,14 +231,15 @@ const AdminSidebar: React.FC = () => {
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="mt-1 pl-10 space-y-1"
+                      className="mt-1 pl-8 space-y-1"
                     >
                       {item.subItems.map((subItem) => (
                         <li key={subItem.name}>
                           <Link href={subItem.href}>
-                            <span className={`block px-3 py-2 text-sm font-medium rounded-md ${
+                            <span className={`block px-3 py-2 text-sm font-medium rounded-md flex items-center ${
                               isActive(subItem.href) ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'
                             }`}>
+                              <span className="h-1 w-1 rounded-full bg-white/60 mr-2"></span>
                               {subItem.name}
                             </span>
                           </Link>
