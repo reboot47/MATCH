@@ -49,8 +49,16 @@ export default function ProfileEditPage() {
       description: 'プライベート、趣味、職場、会食、ペット、旅行など'
     },
     {
+      title: 'アピール動画',
+      description: '実際であなたの魅力をもっと伝えましょう',
+      linkTo: '/mypage/profile/edit/appeal-video/new',
+      icon: <HiChevronRight className="text-teal-500" size={20} />
+    },
+    {
       title: 'アピールタグ設定',
-      description: 'アピールタグを設定するとあなたの特徴がもっと伝わるようになります'
+      description: 'アピールタグを設定するとあなたの特徴がもっと伝わるようになります',
+      linkTo: '/mypage/profile/edit/appeal-tags/new',
+      icon: <HiChevronRight className="text-teal-500" size={20} />
     },
     {
       title: 'つぶやき',
@@ -192,14 +200,15 @@ export default function ProfileEditPage() {
               <h3 className="font-medium mb-2">{profileSections[3].title}</h3>
               <p className="text-sm text-gray-500 mb-3">{profileSections[3].description}</p>
               
-              <motion.button 
-                className="w-full flex items-center justify-center p-4 border-2 border-dashed border-teal-300 rounded-lg text-teal-500"
+              <motion.div 
+                className="w-full flex items-center justify-center p-4 border-2 border-dashed border-teal-300 rounded-lg text-teal-500 cursor-pointer"
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 400 }}
+                onClick={() => router.push('/mypage/profile/edit/appeal-tags/new')}
               >
                 <HiPlusCircle size={24} className="mr-2" />
                 <span>追加</span>
-              </motion.button>
+              </motion.div>
             </section>
 
             {/* その他のセクション */}

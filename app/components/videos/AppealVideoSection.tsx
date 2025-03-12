@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { HiOutlineVideoCamera, HiOutlineFire, HiOutlineClock } from 'react-icons/hi';
+import { useRouter } from 'next/navigation';
 import AppealVideoCard from './AppealVideoCard';
+import AppealVideoButton from '@/app/components/AppealVideoButton';
 import { 
   AppealVideo, 
   getPopularAppealVideos, 
@@ -17,6 +19,7 @@ type SortOption = 'popular' | 'latest';
 const AppealVideoSection: React.FC<AppealVideoSectionProps> = ({ 
   onVideoSelect 
 }) => {
+  const router = useRouter();
   const [sortOption, setSortOption] = useState<SortOption>('popular');
   const [selectedVideo, setSelectedVideo] = useState<AppealVideo | null>(null);
 
@@ -30,6 +33,13 @@ const AppealVideoSection: React.FC<AppealVideoSectionProps> = ({
     if (onVideoSelect) {
       onVideoSelect(video);
     }
+  };
+  
+  // アピール動画追加ページへの遷移
+  const handleAddVideo = () => {
+    console.log('アピール動画追加ボタンがクリックされました');
+    // 直接window.locationを使用して遷移します
+    window.location.href = '/mypage/profile/edit/appeal-video/new';
   };
 
   return (
@@ -86,6 +96,11 @@ const AppealVideoSection: React.FC<AppealVideoSectionProps> = ({
         </div>
       )}
       
+      {/* 自分のアピール動画追加ボタン */}
+      <div className="px-4 mb-4">
+        <AppealVideoButton />
+      </div>
+
       {/* 動画グリッド */}
       <div className="px-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

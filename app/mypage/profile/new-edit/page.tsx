@@ -145,10 +145,15 @@ export default function ProfileNewEditPage() {
                   実際であなたの魅力をもっと伝えましょう
                 </p>
                 
-                <button className="w-full flex items-center justify-center py-6 border-2 border-dashed border-teal-300 rounded-lg text-teal-500">
+                <motion.button 
+                  className="w-full flex items-center justify-center py-6 border-2 border-dashed border-teal-300 rounded-lg text-teal-500"
+                  onClick={() => router.push('/mypage/profile/edit/appeal-video/new')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
                   <FiPlus size={24} className="mr-2" />
                   <span>追加</span>
-                </button>
+                </motion.button>
                 
                 <Link href="#" className="flex items-center mt-3 text-sm text-gray-600">
                   <FiInfo size={16} className="mr-1" />
@@ -194,10 +199,15 @@ export default function ProfileNewEditPage() {
               アピールタグを設定するとあなたの特徴がもっと伝わるようになります
             </p>
             
-            <button className="w-full flex items-center justify-center py-6 border-2 border-dashed border-teal-300 rounded-lg text-teal-500">
+            <motion.button 
+              className="w-full flex items-center justify-center py-6 border-2 border-dashed border-teal-300 rounded-lg text-teal-500"
+              onClick={() => router.push('/mypage/profile/edit/appeal-tags/new')}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
               <FiPlus size={24} className="mr-2" />
               <span>追加</span>
-            </button>
+            </motion.button>
           </div>
 
           {/* つぶやき */}
