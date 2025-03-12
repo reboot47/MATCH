@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useUser, Gender } from "@/components/UserContext";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { signIn } from "next-auth/react";
 import { FcGoogle } from "react-icons/fc";
 import { HiOutlineMail, HiOutlineUser, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from "react-icons/hi";
 import { FaMars, FaVenus } from "react-icons/fa";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { setUser } = useUser();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,19 +24,63 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [gender, setGender] = useState<'男性' | '女性' | null>(null);
+  const [gender, setGender] = useState<'男性' | '女性' | "">("");
+
+  // 必ず性別選択から始めるようにするためのリダイレクト処理
+  useEffect(() => {
+    console.log('レジスターページ読み込み: 初期チェック開始');
+    // 画面表示前に即座にチェック
+    if (typeof window !== 'undefined') {
+      // URLパラメータから直接性別選択ページから来たか確認
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromGenderParam = urlParams.get('from_gender');
+      
+      // 可能な限りすべてのソースから性別情報を取得
+      const genderInStorage = localStorage.getItem('gender_value');
+      const userGender = localStorage.getItem('userGender');
+      const linebuzzGender = localStorage.getItem('linebuzz_selected_gender');
+      
+      // デバッグ情報ログ
+      console.log('登録ページチェック:', {
+        fromGenderParam,
+        hasGenderValue: !!genderInStorage,
+        genderValue: genderInStorage,
+        hasUserGender: !!userGender,
+        userGender: userGender,
+        hasLinebuzzGender: !!linebuzzGender,
+        linebuzzGender: linebuzzGender,
+        url: window.location.href
+      });
+      
+      // 性別選択ページからのリダイレクトパラメータがない場合
+      if (!fromGenderParam) {
+        // いずれかの場所に性別情報があれば登録続行
+        const hasGenderInfo = genderInStorage || userGender || linebuzzGender;
+        
+        if (!hasGenderInfo) {
+          // 直接登録ページにアクセスした場合、データもない場合は強制的に性別選択ページにリダイレクト
+          console.log('性別情報が見つかりません。性別選択ページにリダイレクトします');
+          
+          // window.locationを使用して直接ナビゲーション
+          window.location.href = '/gender-selection?register=true&redirect=register';
+          return;
+        } else {
+          console.log('性別情報がすでに存在します:', { genderInStorage, userGender, linebuzzGender });
+          // 性別情報がある場合は、そのまま登録処理を進める
+        }
+      } else {
+        // URLからパラメータを削除するため、クリーンなURLをブラウザ履歴に追加
+        window.history.replaceState({}, document.title, '/register');
+        console.log('性別選択ページからの遷移を検出しました。登録処理を続行します');
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (step < 4) {
+    if (step < 2) {
       setStep(step + 1);
-      return;
-    }
-    
-    // 性別が選択されていない場合はエラー
-    if (!gender) {
-      setError("性別を選択してください");
       return;
     }
     
@@ -46,25 +93,65 @@ export default function RegisterPage() {
       setLoading(false);
       return;
     }
+    
+    // ローカルストレージから性別を取得 - 複数のソースを確認
+    const genderValue = localStorage.getItem('gender_value');
+    const userGender = localStorage.getItem('userGender');
+    const legacyGender = localStorage.getItem('linebuzz_selected_gender');
+    
+    // いずれかのソースから性別をチェック
+    let detectedGender = genderValue || userGender || legacyGender;
+    if (!detectedGender || (detectedGender !== 'male' && detectedGender !== 'female' && detectedGender !== '男性' && detectedGender !== '女性')) {
+      console.log('有効な性別情報が見つかりません:', { genderValue, userGender, legacyGender });
+      setError('性別情報が見つかりません。性別選択に移動します。');
+      window.location.href = '/gender-selection?register=true&redirect=register';
+      setLoading(false);
+      return;
+    }
+    
+    // 形式を統一して日本語表記にする
+    const selectedGender = (detectedGender === 'male' || detectedGender === '男性') ? '男性' : '女性';
 
     try {
       // 注: APIエンドポイントは後で実装されるため、一時的に直接成功フローに進みます
-      console.log("登録情報：", { name, email, password, gender });
+      console.log("登録情報：", { name, email, password });
       
       // 2秒間のディレイを入れて処理中の表示を見せる
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // テスト用: ユーザーデータをローカルストレージに保存
+      // ユーザーデータの作成 - UserProfile型に互換性を持たせる
+      const userData = {
+        id: Math.random().toString(36).substring(2, 9),
+        name,
+        email,
+        gender: selectedGender as '男性' | '女性', // Gender型に互換性を持たせる
+        age: 25, // デフォルト値を設定
+        bio: "",
+        location: "",
+        profileCompletionPercentage: 30,
+        isVerified: true,
+        interests: [],
+        isOnline: true,
+        registeredAt: new Date().toISOString()
+      };
+      
+      // ユーザーデータをローカルストレージに保存
       if (typeof window !== 'undefined') {
-        localStorage.setItem('linebuzz_temp_user', JSON.stringify({
-          name,
-          email,
-          registeredAt: new Date().toISOString()
-        }));
+        localStorage.setItem('linebuzz_temp_user', JSON.stringify(userData));
+        // ログイン状態を保存
+        localStorage.setItem('linebuzz_is_logged_in', 'true');
+        console.log('ユーザー情報をローカルストレージに保存しました', userData);
       }
+      
+      // UserContextにユーザー情報を保存
+      setUser(userData);
+      console.log('UserContextにユーザー情報を保存しました', userData);
 
-      // 登録フローをリファクタリングしたため、ここでは性別選択ページにリダイレクト
-      router.push("/gender-selection");
+      // 登録完了後、マイページに強制リダイレクト
+      // ディレイを少し長めにしてデータが確実に保存されるようにする
+      setTimeout(() => {
+        router.push('/mypage');
+      }, 500);
     } catch (error: any) {
       setError(error.message || "登録中にエラーが発生しました。後でもう一度お試しください。");
       setLoading(false);
@@ -72,7 +159,44 @@ export default function RegisterPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    // Google認証処理は後で実装
+    setLoading(true);
+    setError("");
+    try {
+      console.log('Google認証開始');
+
+      // 必要なローカルストレージの値をクリア
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('linebuzz_selected_gender');
+        localStorage.removeItem('userGender');
+        localStorage.removeItem('isAuthenticated');
+        localStorage.setItem('isAuthenticated', 'false');
+        sessionStorage.removeItem('from_gender_selection');
+        sessionStorage.removeItem('redirecting_to_gender');
+      }
+
+      // Google認証後、性別選択ページにリダイレクト
+      // 型別選択の情報を保持し、直接マイページかプロフィール設定ページに進む
+      const storedGender = localStorage.getItem('linebuzz_selected_gender');
+      if (storedGender) {
+        // Google認証後に直接プロフィール設定ページにリダイレクト
+        localStorage.setItem('auth_redirect', `/profile/setup?provider=google&gender=${storedGender}`);
+      } else {
+        // 性別がない場合は引き続き性別選択ページへ
+        localStorage.setItem('auth_redirect', '/gender-selection?register=true&provider=google');
+      }
+      
+      // Google認証情報を保持
+      sessionStorage.setItem('is_google_registration', 'true');
+      
+      await signIn("google", { 
+        // 一時的にホームページにリダイレクト
+        callbackUrl: "/" 
+      });
+    } catch (error: any) {
+      console.error('Google登録エラー:', error);
+      setError("Googleアカウントでの登録中にエラーが発生しました。後でもう一度お試しください。");
+      setLoading(false);
+    }
   };
 
   return (
@@ -88,17 +212,13 @@ export default function RegisterPage() {
           <p className="text-gray-600">
             {step === 1 
               ? "基本情報を入力してください" 
-              : step === 2 
-              ? "あなたについて教えてください" 
-              : step === 3 
-              ? "安全なパスワードを設定してください"
-              : "最後に性別を選択してください"}
+              : "安全なパスワードを設定してください"}
           </p>
         </div>
 
         {/* ステップインジケーター */}
         <div className="flex justify-between items-center mb-8">
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2].map((i) => (
             <div key={i} className="flex flex-col items-center">
               <div 
                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
@@ -114,7 +234,7 @@ export default function RegisterPage() {
                   i <= step ? "text-primary-300" : "text-gray-400"
                 }`}
               >
-                {i === 1 ? "基本" : i === 2 ? "詳細" : i === 3 ? "設定" : "性別"}
+                {i === 1 ? "基本情報" : "パスワード設定"}
               </span>
             </div>
           ))}
@@ -144,42 +264,11 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <AnimatePresence mode="wait">
+
+
             {step === 1 && (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6"
-              >
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    メールアドレス
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <HiOutlineMail className="h-5 w-5 text-primary-300" />
-                    </div>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition ios-form"
-                      placeholder="yourname@example.com"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 2 && (
-              <motion.div
-                key="step2"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -207,12 +296,34 @@ export default function RegisterPage() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    メールアドレス
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <HiOutlineMail className="h-5 w-5 text-primary-300" />
+                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition ios-form"
+                      placeholder="example@example.com"
+                    />
+                  </div>
+                </div>
               </motion.div>
             )}
 
-            {step === 3 && (
+            {step === 2 && (
               <motion.div
-                key="step3"
+                key="step2"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -275,72 +386,12 @@ export default function RegisterPage() {
                     />
                   </div>
                 </div>
+                
+
               </motion.div>
             )}
             
-            {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h3 className="text-center font-medium text-gray-700 mb-6">
-                    あなたの性別を選択してください
-                  </h3>
-                  
-                  <div className="flex justify-center space-x-6">
-                    <motion.div
-                      className={`relative cursor-pointer w-36 flex flex-col items-center p-5 rounded-xl border-2 ${gender === '男性' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setGender('男性')}
-                    >
-                      <div className="w-20 h-20 flex items-center justify-center bg-blue-100 rounded-full mb-4">
-                        <FaMars className="text-blue-500 text-4xl" />
-                      </div>
-                      <span className="font-medium text-gray-800">男性</span>
-                      {gender === '男性' && (
-                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-4 h-4 text-white">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-                    </motion.div>
-                    
-                    <motion.div
-                      className={`relative cursor-pointer w-36 flex flex-col items-center p-5 rounded-xl border-2 ${gender === '女性' ? 'border-pink-500 bg-pink-50' : 'border-gray-200'}`}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setGender('女性')}
-                    >
-                      <div className="w-20 h-20 flex items-center justify-center bg-pink-100 rounded-full mb-4">
-                        <FaVenus className="text-pink-500 text-4xl" />
-                      </div>
-                      <span className="font-medium text-gray-800">女性</span>
-                      {gender === '女性' && (
-                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-4 h-4 text-white">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-                    </motion.div>
-                  </div>
 
-                  <div className="mt-6 text-center">
-                    <p className="text-xs text-gray-500">
-                      性別によって機能や課金体系が異なります。正確に選択してください。<br />
-                      この選択は後から変更できません。
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </AnimatePresence>
 
           <div className="flex justify-between items-center pt-6">
@@ -361,7 +412,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="py-3 px-6 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-primary-300 hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition ios-btn"
             >
-              {loading ? "処理中..." : step < 4 ? "次へ" : "登録する"}
+              {loading ? "処理中..." : step < 2 ? "次へ" : "登録する"}
             </button>
           </div>
         </form>

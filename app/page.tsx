@@ -10,21 +10,104 @@ import Header from '@/app/components/Header'; // Headerコンポーネントを�
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  // 認証状態を管理する状態変数を追加
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     // ローディングアニメーション
     console.log('ホームページがロードされました');
     let isMounted = true;
     
-    // 認証状態を確認（デモ用に簡易実装）
-    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
-    
-    if (isAuthenticated) {
-      // 認証済みユーザーは /home へリダイレクト
-      console.log('認証済みユーザーを/homeへリダイレクト');
-      router.push('/home');
-      return;
+    // Google認証後の処理
+    if (typeof window !== 'undefined') {
+      // URLクエリパラメータを確認
+      const urlParams = new URLSearchParams(window.location.search);
+      const callbackUrl = urlParams.get('callbackUrl');
+      
+      // Googleからのリダイレクトを確認
+      if (callbackUrl && callbackUrl.includes('google')) {
+        console.log('Google認証からのコールバックを検出');
+        
+        // ローカルストレージのフラグを確認
+        const loginWithGoogle = localStorage.getItem('login_with_google') === 'true';
+        
+        if (loginWithGoogle) {
+          // ログインページからのGoogle認証の場合は直接マイページに遷移
+          console.log('Googleログイン成功、マイページに遷移します');
+          localStorage.removeItem('login_with_google');
+          
+          // ダミーユーザー情報を作成（実験用）
+          const userData = {
+            id: "google-" + Math.random().toString(36).substring(2, 9),
+            name: "Googleユーザー",
+            age: 30,
+            gender: "男性",
+            location: "東京",
+            bio: "",
+            profileCompletionPercentage: 60,
+            isVerified: true,
+            interests: [],
+            isOnline: true
+          };
+          
+          // ユーザー情報を保存
+          localStorage.setItem('linebuzz_user', JSON.stringify(userData));
+          localStorage.setItem('userData', JSON.stringify(userData));
+          localStorage.setItem('isAuthenticated', 'true');
+          
+          window.location.href = '/mypage';
+          return;
+        }
+      }
+      
+      // 通常の処理：登録ページからのGoogle認証など
+      const authRedirect = localStorage.getItem('auth_redirect');
+      if (authRedirect) {
+        console.log('認証後のリダイレクト先を発見:', authRedirect);
+        localStorage.removeItem('auth_redirect');
+        window.location.href = authRedirect;
+        return;
+      }
+      
+      // /googleページへのアクセスをログインページにリダイレクト
+      if (window.location.pathname === '/google') {
+        console.log('/googleアクセスを検出、ログインページにリダイレクトします');
+        window.location.href = '/login';
+        return;
+      }
+      
+      // ログアウト時の処理
+      const forcedLogout = sessionStorage.getItem('forced_logout') === 'true';
+      if (forcedLogout) {
+        // ログアウト後のクリーンアップ
+        localStorage.removeItem('isAuthenticated');
+        localStorage.setItem('isAuthenticated', 'false'); // 明示的にfalseを設定
+        
+        // 性別関連情報をクリア
+        localStorage.removeItem('linebuzz_selected_gender');
+        localStorage.removeItem('userGender');
+        
+        // ログアウトフラグをクリア
+        sessionStorage.removeItem('forced_logout');
+      }
+      
+      // その他のユーザーデータをクリア
+      localStorage.removeItem('linebuzz_user');
+      localStorage.removeItem('linebuzz_temp_user');
+      localStorage.removeItem('linebuzz_is_logged_in');
+      
+      // セッションストレージのデータもクリア
+      sessionStorage.removeItem('from_gender_selection');
+      sessionStorage.removeItem('redirecting_to_gender');
+      sessionStorage.removeItem('force_logout');
+      
+      console.log('トップページ：認証情報のクリアを行いました');
     }
+    
+    // この時点では認証状態は必ずfalseになっているはず
+    setIsAuthorized(false);
+    console.log('認証状態をリセットしました');
+
     
     // メインタイマー
     const timer = setTimeout(() => {
@@ -59,11 +142,22 @@ export default function Home() {
   }, [loading, router]);
 
   const handleGetStarted = () => {
-    // デモ用に認証済み状態をローカルストレージに保存
+    // 登録フローを開始するため、性別選択ページに直接リダイレクト
     if (typeof window !== 'undefined') {
-      localStorage.setItem('isAuthenticated', 'true');
+      // 必要なローカルストレージの値をクリア
+      localStorage.removeItem('linebuzz_selected_gender');
+      localStorage.removeItem('userGender');
+      localStorage.removeItem('isAuthenticated'); // 認証状態を確実にクリア
+      localStorage.setItem('isAuthenticated', 'false'); // 明示的にfalseを設定
+      
+      sessionStorage.removeItem('from_gender_selection');
+      sessionStorage.removeItem('redirecting_to_gender');
+      
+      console.log('登録フローを開始します');
+      
+      // ページリロードを伴う遷移で確実に性別選択ページから開始
+      window.location.href = '/gender-selection?register=true';
     }
-    router.push('/home');
   };
 
   return (

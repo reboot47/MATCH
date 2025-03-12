@@ -48,9 +48,42 @@ export default function Header() {
   // ログアウト処理
   const handleLogout = async () => {
     try {
+      // NextAuthのログアウト処理
       await signOut({ redirect: false });
+      
+      // ローカルストレージの全ての認証関連データをクリア
+      if (typeof window !== 'undefined') {
+        // 強制ログアウトフラグを設定
+        sessionStorage.setItem('force_logout', 'true');
+        
+        // 認証状態をクリア
+        localStorage.removeItem('isAuthenticated');
+        localStorage.setItem('isAuthenticated', 'false'); // 明示的にfalseを設定
+        
+        // 性別関連情報をクリア
+        localStorage.removeItem('linebuzz_selected_gender');
+        localStorage.removeItem('userGender');
+        
+        // その他のユーザー情報をクリア
+        localStorage.removeItem('linebuzz_user');
+        localStorage.removeItem('linebuzz_temp_user');
+        localStorage.removeItem('linebuzz_is_logged_in');
+        
+        // セッションストレージのデータもクリア
+        sessionStorage.removeItem('from_gender_selection');
+        sessionStorage.removeItem('redirecting_to_gender');
+        
+        // ログアウトデータを別途保存
+        const now = new Date().toISOString();
+        localStorage.setItem('last_logout_time', now);
+        
+        console.log('ローカルストレージの認証情報を完全にクリアしました');
+      }
+      
       toast.success("ログアウトしました");
-      router.push("/");
+      
+      // ページを完全にリロードしてホームページに移動
+      window.location.href = '/';
     } catch (error) {
       toast.error("ログアウトに失敗しました");
       console.error("Logout error:", error);
@@ -99,7 +132,18 @@ export default function Header() {
               ログイン
             </button>
             <button
-              onClick={() => router.push("/register")}
+              onClick={() => {
+                // 必要なローカルストレージの値をクリア
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('linebuzz_selected_gender');
+                  localStorage.removeItem('userGender');
+                  sessionStorage.removeItem('from_gender_selection');
+                  sessionStorage.removeItem('redirecting_to_gender');
+                  
+                  // 確実に性別選択ページから開始するためにページリロードを使用
+                  window.location.href = '/gender-selection?register=true';
+                }
+              }}
               className="px-5 py-2 bg-[#66cdaa] text-white font-medium rounded-lg hover:bg-[#5bb799] transition-colors shadow-sm"
             >
               無料登録

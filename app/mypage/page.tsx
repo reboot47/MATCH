@@ -14,7 +14,8 @@ import BalanceStatusCard from '../components/mypage/BalanceStatusCard';
 import AgeVerificationBadge from '../components/mypage/AgeVerificationBadge';
 import GenderToggle from '../components/DevTools/GenderToggle';
 import MypageHeader from '../components/mypage/MypageHeader';
-import { useUser } from '@/components/UserContext';
+import ProfileCompletionIndicator from '../components/profile/ProfileCompletionIndicator';
+import { useUser, Gender, UserProfile } from '@/components/UserContext';
 import { HiOutlinePencil, HiQuestionMarkCircle, HiOutlineUserCircle, HiOutlineCog, HiOutlinePlus } from 'react-icons/hi';
 import { RiVipCrownLine } from 'react-icons/ri';
 import { HiLightningBolt, HiFlag, HiCalendar, HiBell, HiStar, HiDocumentText, HiClock, HiUserAdd } from 'react-icons/hi';
@@ -22,8 +23,8 @@ import { HiLightningBolt, HiFlag, HiCalendar, HiBell, HiStar, HiDocumentText, Hi
 export default function MyPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const userContext = useUser();
-  const isMale = userContext?.isGenderMale() ?? false; // デフォルトを女性に変更
+  const { user, setUser } = useUser();
+  const isMale = user?.gender === '男性';
   
   // 残高情報（実際のアプリではAPIから取得）
   const [balances, setBalances] = useState({
@@ -60,12 +61,68 @@ export default function MyPage() {
     { icon: <HiUserAdd className="text-teal-500 text-xl" />, label: '友達招待', href: '/invite' }
   ];
 
-  // ユーザーが未認証の場合はログインページにリダイレクト
+  // ユーザーの認証状態とプロファイルチェック
   React.useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
+    const checkUserProfile = async () => {
+      try {
+        // ローディング中は何もしない
+        if (status === 'loading') return;
+
+        // 未認証の場合はログインページへリダイレクト
+        if (status !== 'authenticated' || !session?.user) {
+          console.log('認証が必要です');
+          window.location.href = '/login?redirect=mypage';
+          return;
+        }
+
+        // 性別情報の取得とチェック
+        const genderValue = localStorage.getItem('gender_value');
+        const userGender = localStorage.getItem('userGender');
+        const linebuzzGender = localStorage.getItem('linebuzz_selected_gender');
+        
+        // いずれかのソースから性別をチェック
+        let detectedGender = genderValue || userGender || linebuzzGender;
+        
+        // 有効な性別が見つからない場合は性別選択ページへ
+        if (!detectedGender || (detectedGender !== 'male' && detectedGender !== 'female' && detectedGender !== '男性' && detectedGender !== '女性')) {
+          console.log('❗ 性別が見つかりません。性別選択ページに移動します');
+          window.location.href = '/gender-selection?register=true';
+          return;
+        }
+        
+        // 性別をGender型に正規化
+        const normalizedGender: Gender = (detectedGender === 'male' || detectedGender === '男性') ? '男性' : '女性';
+        
+        // ユーザー情報を更新
+        const updatedUserProfile: UserProfile = {
+          id: session.user.id || '',
+          name: session.user.name || '',
+          gender: normalizedGender,
+          age: (session.user as any).age || 0,
+          bio: (session.user as any).bio || '',
+          location: (session.user as any).location || '',
+          profileCompletionPercentage: 0,
+          isVerified: false,
+          interests: [],
+          isOnline: true
+        };
+        
+        // ユーザー情報を保存
+        setUser(updatedUserProfile);
+        localStorage.setItem('linebuzz_user', JSON.stringify(updatedUserProfile));
+        
+        // URLパラメータをクリーンアップ
+        if (window.location.search) {
+          window.history.replaceState({}, document.title, '/mypage');
+        }
+      } catch (error) {
+        console.error('ユーザー情報の処理中にエラーが発生しました:', error);
+      }
+    };
+
+    checkUserProfile();
+  }, [status, session, setUser]);
+
 
   if (status === 'loading') {
     return (
@@ -74,6 +131,7 @@ export default function MyPage() {
           <div className="h-12 w-12 bg-gray-200 rounded-full mb-4"></div>
           <div className="h-4 w-40 bg-gray-200 rounded mb-3"></div>
           <div className="h-3 w-32 bg-gray-200 rounded"></div>
+          <p className="mt-4 text-gray-600 text-sm">読み込み中です...</p>
         </div>
       </div>
     );
@@ -275,6 +333,13 @@ export default function MyPage() {
               <GoldOptionBanner />
             </div>
           )}
+          
+          {/* プロフィール完成度インジケーター */}
+          <div className="mt-6 px-4">
+            <ProfileCompletionIndicator 
+              onItemClick={(url) => router.push(url)}
+            />
+          </div>
           
           {/* プロモーションカード */}
           <div className="mt-6 px-4 mb-4">

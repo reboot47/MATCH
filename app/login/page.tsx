@@ -93,14 +93,14 @@ function LoginContent() {
     setLoading(true);
     setDebugInfo(null);
     try {
-      console.log('Google認証開始');
-      // Google認証後、性別選択ページにリダイレクト
+      // Googleログインを実行
       await signIn("google", { 
-        callbackUrl: "/gender-selection?provider=google" 
+        callbackUrl: '/mypage',
+        redirect: true
       });
     } catch (error: any) {
-      console.error('Googleログインエラー:', error);
-      setError("Googleログイン中にエラーが発生しました。後でもう一度お試しください。");
+      console.error('ログインエラー:', error);
+      setError("申し訳ございません。ログインに失敗しました。しばらく時間をおいてから、もう一度お試しください。");
       setDebugInfo({
         type: 'GOOGLE_AUTH_ERROR',
         message: error.message,
@@ -249,9 +249,27 @@ function LoginContent() {
         <div className="text-center mt-8">
           <p className="text-sm text-gray-600">
             アカウントをお持ちでないですか？{" "}
-            <Link href="/register" className="font-medium text-primary-300 hover:text-primary-400">
+            <a 
+              href="/gender-selection?register=true" 
+              onClick={(e) => {
+                e.preventDefault();
+                // ローカルストレージのクリア
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('linebuzz_selected_gender');
+                  localStorage.removeItem('userGender');
+                  localStorage.removeItem('isAuthenticated');
+                  localStorage.setItem('isAuthenticated', 'false');
+                  sessionStorage.removeItem('from_gender_selection');
+                  sessionStorage.removeItem('redirecting_to_gender');
+                  
+                  // 確実に新しいページ読み込みで性別選択ページに遷移
+                  window.location.href = '/gender-selection?register=true';
+                }
+              }}
+              className="font-medium text-primary-300 hover:text-primary-400"
+            >
               新規登録
-            </Link>
+            </a>
           </p>
         </div>
 

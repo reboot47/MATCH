@@ -6,21 +6,42 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { HiOutlinePencil, HiOutlineQuestionMarkCircle } from 'react-icons/hi';
+import { FaMars, FaVenus } from 'react-icons/fa';
+import { useUser } from '@/components/UserContext';
 
 export default function ProfileSummary() {
   const { data: session } = useSession();
-  const user = session?.user;
+  const { user, isGenderMale, isGenderFemale } = useUser();
   const [pointsMode, setPointsMode] = useState(false);
   const [coinsMode, setCoinsMode] = useState(false);
+  
+  // 性別アイコンとカラーの設定
+  const genderIcon = isGenderMale() ? <FaMars className="text-blue-500" /> : isGenderFemale() ? <FaVenus className="text-pink-500" /> : null;
+  const genderText = isGenderMale() ? '男性' : isGenderFemale() ? '女性' : '未設定';
+  const genderBgColor = isGenderMale() ? 'bg-blue-100' : isGenderFemale() ? 'bg-pink-100' : 'bg-gray-100';
 
   // 仮のユーザーデータ（実際のユーザーデータが存在しない場合用）
   const demoUser = {
+    id: 'demo-user',
     name: 'hideo',
-    image: '/images/default-avatar.svg',
-    plan: 'スタンダードプラン',
-    likes: 1,
+    age: 25,
+    gender: '未設定' as any,
+    bio: '',
+    location: '東京',
+    profileImage: '/images/default-avatar.svg',
+    profileCompletionPercentage: 30,
+    isVerified: true,
+    interests: ['音楽', '映画', '旅行'],
+    occupation: '会社員',
+    isOnline: true
+  };
+  
+  // ユーザーポイント情報（実際はコンテキストから取得）
+  const userPoints = {
+    likes: 5,
     points: 16,
-    coins: 25
+    coins: 25,
+    plan: 'スタンダードプラン'
   };
 
   const displayUser = user || demoUser;
@@ -37,9 +58,9 @@ export default function ProfileSummary() {
       <div className="flex flex-col items-center">
         {/* プロフィール画像 */}
         <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gray-100 mb-2 border-2 border-white shadow-md">
-          {displayUser.image ? (
+          {displayUser.profileImage ? (
             <Image
-              src={displayUser.image}
+              src={displayUser.profileImage}
               alt={displayUser.name || ''}
               fill
               className="object-cover"
@@ -72,10 +93,16 @@ export default function ProfileSummary() {
             </motion.button>
           </Link>
         </div>
+        
+        {/* 性別表示 */}
+        <div className={`flex items-center mb-3 px-3 py-1 rounded-full ${genderBgColor}`}>
+          {genderIcon}
+          <span className="ml-1 text-sm font-medium">{genderText}</span>
+        </div>
 
         {/* スタンダードプラン */}
         <Link href="/mypage/plans" className="text-gray-600 text-sm mb-4 flex items-center">
-          <span>{displayUser.plan}</span>
+          <span>{userPoints.plan}</span>
           <span className="ml-1">›</span>
         </Link>
 
@@ -90,7 +117,7 @@ export default function ProfileSummary() {
               <div className="w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center mr-1">
                 <span className="text-white text-xs">❤</span>
               </div>
-              <span className="font-bold">{displayUser.likes}</span>
+              <span className="font-bold">{userPoints.likes}</span>
             </div>
           </div>
           
@@ -103,7 +130,7 @@ export default function ProfileSummary() {
               <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center mr-1">
                 <span className="text-white text-xs">P</span>
               </div>
-              <span className="font-bold">{displayUser.points}</span>
+              <span className="font-bold">{userPoints.points}</span>
             </div>
           </div>
           
@@ -116,7 +143,7 @@ export default function ProfileSummary() {
               <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center mr-1">
                 <span className="text-white text-xs">C</span>
               </div>
-              <span className="font-bold">{displayUser.coins}</span>
+              <span className="font-bold">{userPoints.coins}</span>
             </div>
           </div>
         </div>

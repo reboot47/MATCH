@@ -103,13 +103,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name || '新規ユーザー様',
+          email: profile.email,
+          role: 'user',
+          provider: 'google'
         }
       },
+      authorization: {
+        params: {
+          prompt: "select_account"
+        }
+      }
     }),
     Credentials({
       name: "Credentials",
@@ -128,7 +135,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
         
-        const isPasswordValid = credentials.password ? hashPassword(credentials.password) === user.hashedPassword : false;
+        const isPasswordValid = credentials.password ? hashPassword(credentials.password as string) === user.hashedPassword : false;
         
         if (!isPasswordValid) {
           return null;
@@ -144,33 +151,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async redirect() {
+      // 全てのリダイレクトをマイページに固定
+      return '/mypage';
+    },
+
+    async jwt({ token, user, account, profile }) {
       // ユーザーがサインインしたとき
       if (user) {
-        return {
+        console.log('JWTコールバック: ユーザー情報をトークンに追加', { user });
+        // タイプエラーを修正
+        const newToken = {
           ...token,
           id: user.id,
-          role: user.role,
+          role: (user as any).role || 'user',
+          provider: account?.provider,
         };
+        return newToken;
       }
       
-      // すでにトークンが存在する場合はモックユーザー情報をトークンに追加
-      if (!token.id) {
-        // デフォルトではuser IDを "1"に設定（モックデータの最初のユーザー）
-        token.id = "1";
-        token.role = "user";
+      // Googleプロバイダの場合は特別な処理
+      if (account && account.provider === 'google' && profile) {
+        console.log('Google認証情報が入力されました', { profile });
+        // トークンにGoogle情報を追加
+        const googleToken = {
+          ...token,
+          id: profile.sub || "",
+          name: profile.name,
+          email: profile.email,
+          role: 'user',
+          provider: 'google',
+        };
+        return googleToken;
       }
       
+      // すでにトークンが存在する場合はそのまま使用
       return token;
     },
     
     async session({ session, token }) {
+      console.log('セッションコールバック', { session, token });
       return {
         ...session,
         user: {
           ...session.user,
           id: token.id as string,
           role: token.role as string,
+          provider: token.provider as string || "",
         },
       };
     },
@@ -178,6 +205,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
     error: "/error",
+    signOut: "/login",
+    newUser: "/mypage"
   },
   session: { strategy: "jwt" },
   debug: process.env.NODE_ENV === "development",

@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 // ユーザー情報の型定義
-export type Gender = 'male' | 'female' | 'other' | null;
+// 日本語の性別表記もサポート
+export type Gender = 'male' | 'female' | 'other' | '男性' | '女性' | null;
 
 export interface UserProfile {
   id: string;
@@ -244,14 +245,34 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // ログアウト関数
   const logout = () => {
+    // コンテキスト状態をリセット
     setUser(null);
     setPoints(null);
     setIsAuthenticated(false);
     
-    // 認証状態をクリア
+    // 認証状態と性別選択情報をクリア
     if (typeof window !== 'undefined') {
+      // 強制ログアウトフラグを設定
+      sessionStorage.setItem('force_logout', 'true');
+      
+      // 全ての関連データをクリア
       localStorage.removeItem('isAuthenticated');
-      // 性別情報は次回ログイン時の参照用に保持
+      localStorage.setItem('isAuthenticated', 'false'); // 明示的にfalseを設定
+      
+      // 性別関連情報をクリア
+      localStorage.removeItem('userGender');
+      localStorage.removeItem('linebuzz_selected_gender');
+      
+      // その他のユーザーデータ
+      localStorage.removeItem('linebuzz_user');
+      localStorage.removeItem('linebuzz_temp_user');
+      localStorage.removeItem('linebuzz_is_logged_in');
+      
+      // セッションストレージのデータもクリア
+      sessionStorage.removeItem('from_gender_selection');
+      sessionStorage.removeItem('redirecting_to_gender');
+      
+      console.log('ログアウト: 全ての認証情報と性別選択情報をクリアしました');
     }
   };
 
@@ -315,8 +336,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // 性別判定ヘルパー関数
-  const isGenderMale = () => user?.gender === 'male';
-  const isGenderFemale = () => user?.gender === 'female';
+  // 英語と日本語の両方の性別表記に対応
+  const isGenderMale = () => user?.gender === 'male' || user?.gender === '男性';
+  const isGenderFemale = () => user?.gender === 'female' || user?.gender === '女性';
 
   // 開発モード用の性別切り替え機能
   const toggleGender = () => {
