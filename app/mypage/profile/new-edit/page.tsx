@@ -67,7 +67,7 @@ export default function ProfileNewEditPage() {
           {/* お気持ちからプロフィール確認 */}
           <Link href="/mypage/profile/view" className="block bg-white mb-2">
             <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
-              <span className="text-teal-500">お気持ちからあなたのプロフィールを確認する</span>
+              <span className="text-teal-500">相手から見たあなたのプロフィールを確認する</span>
               <FiChevronRight className="text-teal-500" size={20} />
             </div>
           </Link>
