@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiChevronLeft, FiChevronRight, FiCamera, FiPlus, FiInfo } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiCamera, FiPlus, FiInfo, FiImage } from 'react-icons/fi';
 import { UserContext } from '../../../../components/UserContext';
 import BottomNavigation from '@/app/components/BottomNavigation';
 
@@ -103,12 +103,14 @@ export default function ProfileNewEditPage() {
               )}
               
               <div className="absolute bottom-4 right-4 z-10">
-                <button 
+                <motion.button 
                   className="bg-white rounded-full p-3 shadow-md"
-                  onClick={() => {/* カメラ機能を実装 */}}
+                  onClick={() => router.push('/mypage/profile/edit/main-photo/new')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <FiCamera size={24} className="text-gray-600" />
-                </button>
+                </motion.button>
               </div>
             </div>
             
@@ -182,6 +184,15 @@ export default function ProfileNewEditPage() {
                       />
                     </div>
                   ))}
+                  <motion.div 
+                    className="aspect-square bg-gray-100 rounded flex flex-col items-center justify-center cursor-pointer border-2 border-dashed border-teal-300"
+                    onClick={() => router.push('/mypage/profile/edit/appeal-photo/new')}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <FiPlus size={20} className="text-teal-500 mb-1" />
+                    <span className="text-xs text-teal-500">追加</span>
+                  </motion.div>
                 </div>
                 
                 <Link href="#" className="flex items-center mt-1 text-sm text-gray-600">
