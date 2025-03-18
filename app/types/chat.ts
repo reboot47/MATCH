@@ -1,5 +1,5 @@
 // メッセージタイプの定義
-export type MessageType = 'text' | 'image' | 'video' | 'location' | 'url' | 'sticker';
+export type MessageType = 'text' | 'image' | 'video' | 'location' | 'url' | 'sticker' | 'gift';
 
 // 添付ファイルの基本タイプ
 export interface Attachment {
@@ -15,6 +15,12 @@ export interface ImageAttachment extends Attachment {
   thumbnailUrl?: string;
   width?: number;
   height?: number;
+  // ファイル情報用プロパティ
+  name?: string;
+  size?: number;
+  file?: File;
+  originalWidth?: number;
+  originalHeight?: number;
 }
 
 // 動画添付ファイル
@@ -25,6 +31,10 @@ export interface VideoAttachment extends Attachment {
   duration?: number;      // 動画の再生時間（秒）
   title?: string;        // 動画のタイトル
   description?: string;  // 動画の説明
+  // ファイル情報用プロパティ
+  name?: string;
+  size?: number;
+  file?: File;
 }
 
 // 位置情報添付ファイル
@@ -54,13 +64,25 @@ export interface StickerAttachment extends Attachment {
   packageId?: string;
 }
 
+// ギフト添付ファイル
+export interface GiftAttachment extends Attachment {
+  type: 'gift';
+  giftId: string;
+  giftName: string;
+  giftImageUrl: string;
+  price?: number;
+  message?: string;
+  animation?: string; // アニメーションのCSSクラス名
+}
+
 // 全ての添付ファイルタイプの統合型
 export type AttachmentUnion = 
   | ImageAttachment 
   | VideoAttachment 
   | LocationAttachment 
   | UrlAttachment
-  | StickerAttachment;
+  | StickerAttachment
+  | GiftAttachment;
 
 // リアクションタイプ
 export type ReactionType = 'like' | 'love' | 'laugh' | 'surprise' | 'sad' | 'angry';

@@ -1,13 +1,48 @@
 "use client";
 
-import { useState } from 'react';
-import Image from 'next/image';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Message, Reaction, MessageStatus } from '@/app/types/chat';
 import { HiOutlineHeart, HiHeart, HiOutlineDotsHorizontal } from 'react-icons/hi';
 import { FaCheck, FaCheckDouble } from 'react-icons/fa';
+import SafeImage from '@/app/components/common/SafeImage';
+import GiftImage from '@/app/components/common/GiftImage';
+import MapImage from '@/app/components/common/MapImage';
+import { getProxiedImageUrl } from '@/app/utils/proxyHelpers';
+
+/**
+ * 画像のプリロードを行うカスタムフック
+ * @param url 画像のURL
+ * @returns { loaded, error }
+ */
+const useImagePreload = (url?: string | null) => {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  
+  useEffect(() => {
+    if (!url) return;
+    
+    const img = new window.Image();
+    img.onload = () => {
+      setLoaded(true);
+      setError(false);
+    };
+    img.onerror = () => {
+      setError(true);
+      console.error('[Image Preload] Failed to load:', url);
+    };
+    img.src = url;
+    
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [url]);
+  
+  return { loaded, error };
+};
 
 interface MessageBubbleProps {
   message: Message;
@@ -38,87 +73,314 @@ export default function MessageBubble({
 
     return (
       <div className="space-y-2 mt-2">
-        {message.attachments.map((attachment) => {
+        {message.attachments.map((attachment: any) => {
           switch (attachment.type) {
             case 'image':
+              // 画像URLの安全性チェック - 完全に無効な値は除外
+              const imageUrl = attachment.url && typeof attachment.url === 'string' && attachment.url.trim() !== '' 
+                ? attachment.url 
+                : null;
+              
+              // プリロードフックを使用して画像の読み込み状態を管理
+              const { loaded, error } = useImagePreload(imageUrl);
+              
               return (
-                <div 
-                  key={attachment.id} 
-                  className="relative rounded-lg overflow-hidden"
-                  style={{ maxWidth: '240px' }}
+                <motion.div 
+                  key={attachment.id || `image-${Math.random().toString(36).substring(2, 9)}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`rounded-lg overflow-hidden max-w-xs mx-auto ${isMine ? 'ml-auto' : 'mr-auto'}`}
                 >
-                  <Image
-                    src={attachment.url}
-                    alt="添付画像"
-                    width={240}
-                    height={240}
-                    className="object-cover"
-                    style={{ 
-                      maxHeight: '240px', 
-                      width: attachment.width && attachment.height 
-                        ? `${Math.min(240, attachment.width)}px` 
-                        : 'auto'
-                    }}
-                  />
-                </div>
+                  {imageUrl ? (
+                    <SafeImage
+                      src={imageUrl}
+                      alt={attachment.description || '画像'}
+                      className="w-full h-auto max-h-60 object-contain"
+                      fallbackSrc="/images/placeholder-image.svg"
+                    />
+                  ) : (
+                    <div className="bg-gray-100 p-4 text-center text-gray-500 rounded-lg">
+                      画像を読み込めませんでした
+                    </div>
+                  )}
+                  
+                  {/* キャプションがある場合は表示 */}
+                  {attachment.caption && typeof attachment.caption === 'string' && (
+                    <div className="p-2 text-sm text-gray-700 bg-white">
+                      {attachment.caption}
+                    </div>
+                  )}
+                </motion.div>
               );
-            case 'video':
+              
+            case 'gift':
+              // デバッグ用にギフト情報をコンソールに表示
+              console.log('【MessageBubble】ギフト表示:', {
+                giftId: attachment.giftId,
+                giftName: attachment.giftName,
+                giftImageUrl: attachment.giftImageUrl,
+                message: attachment.message
+              });
+              
               return (
-                <div key={attachment.id} className="relative rounded-lg overflow-hidden">
-                  <video 
-                    src={attachment.url} 
-                    controls 
-                    poster={attachment.thumbnailUrl}
-                    className="max-w-[240px] max-h-[240px] rounded-lg"
-                  />
-                </div>
+                <motion.div 
+                  key={attachment.id || `gift-${Math.random().toString(36).substring(2, 9)}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex items-start ${isMine ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className="flex items-center mb-2">
+                    <motion.div 
+                      className="mr-3 bg-white rounded-full p-1.5 shadow-sm relative"
+                      initial={{ scale: 0.9 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      {/* ギフト画像がある場合は表示、ない場合はエモジを表示 */}
+                      {attachment.giftImageUrl || typeof attachment.giftId === 'string' ? (
+                        (() => {
+                          // ギフトIDからギフト名を取得
+                          const giftId = typeof attachment.giftId === 'string' ? attachment.giftId : '';
+                          let giftName = '';
+                          
+                          // ギフトIDから既知のギフト名を解決
+                          switch(giftId) {
+                            case '1': giftName = 'heart'; break;
+                            case '2': giftName = 'flowers'; break;
+                            case '3': giftName = 'cake'; break;
+                            case '4': giftName = 'dinner'; break;
+                            case '5': giftName = 'wine'; break;
+                            default: giftName = '';
+                          }
+                          
+                          // 最終的なギフト画像ソースを決定
+                          let finalSrc = attachment.giftImageUrl;
+                          
+                          // ギフト名が存在し、URLが無い場合はギフト名を使用
+                          if (giftName && (!finalSrc || typeof finalSrc !== 'string' || finalSrc.trim() === '')) {
+                            finalSrc = giftName; // GiftImageコンポーネント内でパス解決される
+                          }
+                          
+                          return (
+                            <div className="w-12 h-12 relative gift-image-container">
+                              <GiftImage 
+                                src={finalSrc}
+                                alt={typeof attachment.giftName === 'string' ? attachment.giftName : giftName || 'ギフト'}
+                                width={48}
+                                height={48}
+                                objectFit="contain"
+                                priority={true}
+                                className="object-contain"
+                                onError={(e) => {
+                                  console.error(`[ギフト画像] 読み込みエラー: giftId=${giftId}, giftName=${giftName}, src=${finalSrc}`);
+                                  
+                                  // エモジ要素を佼う
+                                  let emoji = '🎁'; // デフォルトはプレゼント
+                                  switch(giftId) {
+                                    case '1': emoji = '❤️'; break;
+                                    case '2': emoji = '💐'; break;
+                                    case '3': emoji = '🎂'; break;
+                                    case '4': emoji = '🍽️'; break;
+                                    case '5': emoji = '🍷'; break;
+                                  }
+                                  
+                                  // DOM操作は最小限に
+                                  const container = (e.currentTarget as HTMLImageElement).closest('.gift-image-container');
+                                  if (container) {
+                                    // すでにフォールバック要素があれば再利用
+                                    const existingFallback = container.querySelector('.gift-fallback');
+                                    if (existingFallback) {
+                                      existingFallback.textContent = emoji;
+                                      existingFallback.classList.remove('hidden');
+                                    } else {
+                                      const fallback = document.createElement('div');
+                                      fallback.className = 'text-4xl flex items-center justify-center w-full h-full gift-fallback';
+                                      fallback.textContent = emoji;
+                                      container.appendChild(fallback);
+                                    }
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="w-12 h-12 flex items-center justify-center">
+                          <div className="text-4xl">
+                            {(() => {
+                              // エモジ表示
+                              const giftId = typeof attachment.giftId === 'string' ? attachment.giftId : '';
+                              switch(giftId) {
+                                case '1': return '❤️';
+                                case '2': return '💐';
+                                case '3': return '🎂';
+                                case '4': return '🍽️';
+                                case '5': return '🍷';
+                                default: return '🎁';
+                              }
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                    <div>
+                      <div className="text-sm font-bold text-gray-800">
+                        ギフトを送信しました
+                      </div>
+                      <div className="text-sm font-medium text-gray-700">
+                        {typeof attachment.giftName === 'string' && attachment.giftName ? attachment.giftName : 'ギフト'}
+                        {typeof attachment.price === 'number' && (
+                          <span className="text-xs ml-1 text-gray-500">{attachment.price}pt</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* ギフトメッセージがある場合は表示 */}
+                  {typeof attachment.message === 'string' && attachment.message && (
+                    <div className="mt-1 p-2 bg-gray-50 rounded-lg text-sm text-gray-700 w-full">
+                      {attachment.message}
+                    </div>
+                  )}
+                </motion.div>
               );
+              
+            case 'video':
+              // 無効なURLをチェック
+              const validVideoUrl = attachment.url && typeof attachment.url === 'string' && attachment.url.trim() !== ''
+                ? attachment.url : null;
+                
+              return (
+                <motion.div 
+                  key={attachment.id || `video-${Math.random().toString(36).substring(2, 9)}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="rounded-lg overflow-hidden max-w-xs mx-auto"
+                >
+                  {validVideoUrl ? (
+                    <video 
+                      controls 
+                      className="w-full h-auto max-h-60"
+                      poster={attachment.thumbnail || '/images/video-placeholder.jpg'}
+                    >
+                      <source src={validVideoUrl} type={attachment.mimeType || 'video/mp4'} />
+                      お使いのブラウザは動画の再生に対応していません
+                    </video>
+                  ) : (
+                    <div className="bg-gray-100 p-4 text-center text-gray-500 rounded-lg">
+                      動画を読み込めませんでした
+                    </div>
+                  )}
+                </motion.div>
+              );
+              
             case 'location':
               return (
-                <div key={attachment.id} className="rounded-lg overflow-hidden bg-gray-100 p-2">
-                  <div className="text-xs text-gray-500 mb-1">{attachment.name || '位置情報'}</div>
-                  <div className="relative h-[120px] w-[200px]">
-                    <Image
-                      src={`https://maps.googleapis.com/maps/api/staticmap?center=${attachment.latitude},${attachment.longitude}&zoom=15&size=200x120&markers=color:red%7C${attachment.latitude},${attachment.longitude}&key=YOUR_API_KEY`}
-                      alt="地図"
-                      fill
-                      className="rounded-lg"
-                    />
+                <motion.div 
+                  key={attachment.id || `location-${Math.random().toString(36).substring(2, 9)}`} 
+                  className="rounded-lg overflow-hidden bg-gray-100 p-2"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="mb-2 text-sm font-medium">
+                    {attachment.name || '位置情報'}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">{attachment.address}</div>
-                </div>
+                  
+                  {/* 地図表示部分 */}
+                  {attachment.latitude && attachment.longitude ? (
+                    <div className="relative h-40 w-full">
+                      <MapImage
+                        latitude={attachment.latitude}
+                        longitude={attachment.longitude}
+                        name={attachment.name || '地図'}
+                        className="rounded-md w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-gray-200 h-40 rounded-md flex items-center justify-center">
+                      <div className="text-gray-500">位置情報がありません</div>
+                    </div>
+                  )}
+                  
+                  {/* 住所情報があれば表示 */}
+                  {attachment.address && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      {attachment.address}
+                    </div>
+                  )}
+                </motion.div>
               );
+              
             case 'url':
               return (
-                <div key={attachment.id} className="flex rounded-lg overflow-hidden border border-gray-200">
-                  {attachment.imageUrl && (
-                    <div className="relative w-20 h-20">
-                      <Image
-                        src={attachment.imageUrl}
+                <motion.div 
+                  key={attachment.id || `url-${Math.random().toString(36).substring(2, 9)}`}
+                  className="flex rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="p-3 flex flex-col flex-grow">
+                    <div className="text-sm font-bold text-blue-600 truncate">
+                      {attachment.title || attachment.url || 'リンク'}
+                    </div>
+                    
+                    {attachment.description && (
+                      <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                        {attachment.description}
+                      </div>
+                    )}
+                    
+                    <div className="text-xs text-gray-500 mt-1 truncate">
+                      {attachment.url || ''}
+                    </div>
+                  </div>
+                  
+                  {attachment.thumbnail && (
+                    <div className="w-20 h-20 bg-gray-100">
+                      <img 
+                        src={attachment.thumbnail} 
                         alt={attachment.title || ''}
-                        fill
-                        className="object-cover"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     </div>
                   )}
-                  <div className="p-2 flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{attachment.title}</div>
-                    <div className="text-xs text-gray-500 truncate">{attachment.description}</div>
-                    <div className="text-xs text-blue-500 truncate">{attachment.url}</div>
-                  </div>
-                </div>
+                </motion.div>
               );
+              
             case 'sticker':
               return (
-                <div key={attachment.id} className="relative w-[120px] h-[120px]">
-                  <Image
-                    src={`/stickers/${attachment.packageId}/${attachment.stickerId}.png`}
-                    alt="スタンプ"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
+                <motion.div 
+                  key={attachment.id || `sticker-${Math.random().toString(36).substring(2, 9)}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, type: 'spring' }}
+                  className="max-w-xs mx-auto"
+                >
+                  {attachment.url ? (
+                    <SafeImage
+                      src={attachment.url}
+                      alt="スタンプ"
+                      width={120}
+                      height={120}
+                      className="max-w-full h-auto max-h-32"
+                      fallbackSrc="/images/sticker-placeholder.svg"
+                    />
+                  ) : (
+                    <div className="bg-gray-100 p-4 text-center text-gray-500 rounded-lg">
+                      スタンプを読み込めませんでした
+                    </div>
+                  )}
+                </motion.div>
               );
+              
             default:
               return null;
           }
@@ -130,175 +392,169 @@ export default function MessageBubble({
   // メッセージステータスアイコンの表示
   const renderStatusIcon = () => {
     if (!isMine) return null;
-
+    
     switch (message.status) {
-      case 'sending':
-        return <div className="w-1.5 h-1.5 bg-gray-300 rounded-full mr-0.5 animate-pulse" />;
       case 'sent':
-        return <FaCheck className="text-gray-400 text-[10px] mr-0.5" />;
+        return <FaCheck className="text-gray-400" size={12} />;
       case 'delivered':
-        return <FaCheckDouble className="text-gray-400 text-[10px] mr-0.5" />;
+        return <FaCheckDouble className="text-gray-400" size={12} />;
       case 'read':
-        return (
-          <span className="text-[10px] text-primary-400 mr-0.5 font-medium select-none">既読</span>
-        );
-      case 'failed':
-        return <span className="text-error-300 text-[10px] mr-0.5">!</span>;
+        return <FaCheckDouble className="text-blue-500" size={12} />;
       default:
         return null;
     }
   };
-
+  
   // リアクションの表示
   const renderReactions = () => {
     if (!message.reactions || message.reactions.length === 0) return null;
-
-    // リアクションタイプごとにカウント
-    const reactionCounts: Record<string, number> = {};
-    message.reactions.forEach((reaction) => {
-      reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
+    
+    // リアクションをタイプごとにグループ化
+    const reactionGroups: { [key: string]: Reaction[] } = {};
+    message.reactions.forEach((reaction: any) => {
+      if (!reactionGroups[reaction.type]) {
+        reactionGroups[reaction.type] = [];
+      }
+      reactionGroups[reaction.type].push(reaction);
     });
-
+    
     return (
       <div className={`flex mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
-        <div className="flex items-center space-x-1 bg-white rounded-full px-2 py-0.5 shadow-sm border border-gray-100">
-          {Object.entries(reactionCounts).map(([type, count]) => (
-            <div key={type} className="flex items-center">
-              {type === 'like' && <HiHeart className="text-pink-500 w-3 h-3" />}
-              {/* 他のリアクションタイプもここに追加 */}
-              <span className="text-xs text-gray-600 ml-0.5 select-none">{count}</span>
+        <div className="flex space-x-1">
+          {Object.entries(reactionGroups).map(([type, reactions]) => (
+            <div 
+              key={type}
+              className="bg-white rounded-full px-2 py-0.5 shadow-sm flex items-center text-xs"
+            >
+              {type === 'heart' ? <HiHeart className="text-red-500 mr-1" size={12} /> : null}
+              {reactions.length}
             </div>
           ))}
         </div>
       </div>
     );
   };
-
-  // フォーマットされた時間
-  // LINEスタイルの簡潔な時間表示
-  const formatMessageTime = (date: Date): string => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const isToday = date >= today;
-    const isYesterday = date >= yesterday && date < today;
-    
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const ampm = hours >= 12 ? '午後' : '午前';
-    const hour12 = hours % 12 || 12;
-    
-    if (isToday) {
-      return `${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
-    } else if (isYesterday) {
-      return `昨日 ${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
-    } else {
-      return `${date.getMonth() + 1}/${date.getDate()} ${ampm}${hour12}:${minutes.toString().padStart(2, '0')}`;
-    }
-  };
   
-  const formattedTime = formatMessageTime(message.createdAt);
+  // 日付の表示
+  const renderTimestamp = () => {
+    return message.createdAt ? (
+      <div className="text-xs text-gray-500">
+        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true, locale: ja })}
+      </div>
+    ) : null;
+  };
 
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={`flex ${isMine ? 'mb-3' : 'mb-3'} ${isMine ? 'justify-end' : 'justify-start'} relative group`}
+      className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-4 relative`}
     >
+      {/* 左側（相手のメッセージの場合はアバターを表示） */}
       {!isMine && showAvatar && (
-        <div className="mr-2 flex-shrink-0">
-          <div className="relative w-8 h-8 rounded-full overflow-hidden">
-            {senderAvatar ? (
-              <Image
-                src={senderAvatar}
-                alt={senderName || ''}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white">
-                {senderName ? senderName.charAt(0).toUpperCase() : '?'}
-              </div>
-            )}
-          </div>
+        <div className="flex-shrink-0 mr-3">
+          <SafeImage
+            src={senderAvatar || '/images/default-avatar.svg'}
+            alt={senderName || ''}
+            className="w-8 h-8 rounded-full"
+          />
         </div>
       )}
-
-      <div className={`${isMine ? 'order-1 mr-1.5' : 'order-2'}`} style={{ maxWidth: 'calc(85% - 24px)' }}>
+      
+      {/* 中央（メッセージの内容） */}
+      <div className={`max-w-[70%] ${isMine ? 'order-1' : 'order-2'}`}>
+        {/* 送信者名（相手のメッセージで名前がある場合のみ表示） */}
         {!isMine && senderName && (
-          <div className="text-xs text-gray-500 mb-1 ml-1">{senderName}</div>
-        )}
-
-        <div 
-          className="relative group"
-          onMouseEnter={() => setShowOptions(true)}
-          onMouseLeave={() => setShowOptions(false)}
-        >
-          <div
-            className={`px-3 py-2.5 break-words ${
-              isMine
-                ? 'bg-primary-300 text-white rounded-2xl rounded-br-none shadow-sm transition-all duration-150 group-hover:bg-primary-400'
-                : 'bg-gray-100 text-gray-800 rounded-2xl rounded-bl-none transition-all duration-150 group-hover:bg-gray-200'
-            }`}
-            style={{
-              maxWidth: '85vw'
-            }}
-          >
-            {message.isDeleted ? (
-              <span className="italic text-xs opacity-60">
-                {isMine ? 'このメッセージは削除されました' : 'メッセージは削除されました'}
-              </span>
-            ) : (
-              <>
-                {message.content && <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
-                {renderAttachments()}
-              </>
-            )}
+          <div className="text-xs font-medium text-gray-700 mb-1">
+            {senderName}
           </div>
-
-          {showOptions && !message.isDeleted && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className={`absolute ${isMine ? 'right-0' : 'left-0'} -top-8 flex items-center space-x-1 bg-white rounded-full shadow-md px-1 py-1 z-10`}
-            >
-              <button
-                onClick={() => onReactionAdd?.(message.id, 'like')}
-                className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 hover:text-pink-500 transition-colors"
-              >
-                <HiOutlineHeart className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onReply?.(message.id)}
-                className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 hover:text-primary-500 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-              </button>
-              {isMine && (
+        )}
+        
+        {/* メッセージ本文（テキストがある場合） */}
+        {message.content && (
+          <div className={`rounded-lg p-3 inline-block max-w-full ${
+            isMine 
+              ? 'bg-blue-500 text-white rounded-tr-none' 
+              : 'bg-gray-100 text-gray-800 rounded-tl-none'
+          }`}>
+            <div className="whitespace-pre-wrap break-words">
+              {message.content}
+            </div>
+          </div>
+        )}
+        
+        {/* 添付ファイル（画像、動画、位置情報など） */}
+        {renderAttachments()}
+        
+        {/* リアクション表示 */}
+        {renderReactions()}
+        
+        {/* メッセージ送信日時とステータス */}
+        <div className={`flex items-center mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+          {renderTimestamp()}
+          {renderStatusIcon() && (
+            <span className="ml-1">
+              {renderStatusIcon()}
+            </span>
+          )}
+        </div>
+      </div>
+      
+      {/* 右側（自分のメッセージの場合はメニューを表示） */}
+      <div className={`flex-shrink-0 ${isMine ? 'mr-3 order-0' : 'ml-3 order-3'}`}>
+        <div className="relative">
+          <button
+            className="p-1 rounded-full hover:bg-gray-100 focus:outline-none"
+            onClick={() => setShowOptions(!showOptions)}
+          >
+            <HiOutlineDotsHorizontal className="text-gray-500" />
+          </button>
+          
+          {/* オプションメニュー */}
+          {showOptions && (
+            <div className="absolute z-10 right-0 mt-1 bg-white rounded-md shadow-lg py-1 min-w-[120px]">
+              {/* リアクション追加ボタン */}
+              {onReactionAdd && (
                 <button
-                  onClick={() => onDelete?.(message.id)}
-                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 hover:text-red-500 transition-colors"
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => {
+                    onReactionAdd(message.id, 'heart');
+                    setShowOptions(false);
+                  }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  <HiOutlineHeart className="mr-2" />
+                  いいね
                 </button>
               )}
-            </motion.div>
+              
+              {/* 返信ボタン */}
+              {onReply && (
+                <button
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => {
+                    onReply(message.id);
+                    setShowOptions(false);
+                  }}
+                >
+                  返信
+                </button>
+              )}
+              
+              {/* 削除ボタン（自分のメッセージのみ） */}
+              {isMine && onDelete && (
+                <button
+                  className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  onClick={() => {
+                    onDelete(message.id);
+                    setShowOptions(false);
+                  }}
+                >
+                  削除
+                </button>
+              )}
+            </div>
           )}
-
-          <div className={`flex items-center mt-0.5 text-[10px] text-gray-400 select-none ${isMine ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
-            {isMine && renderStatusIcon()}
-            <span>{formattedTime}</span>
-          </div>
-
-          {renderReactions()}
         </div>
       </div>
     </motion.div>

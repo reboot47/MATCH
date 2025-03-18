@@ -1,5 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // キャッシュ設定
+  async headers() {
+    return [
+      {
+        source: '/images/gifts/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+        ],
+      },
+    ];
+  },
   env: {
     NEXTAUTH_URL_INTERNAL: process.env.NEXTAUTH_URL || 'http://localhost:3000'
   },

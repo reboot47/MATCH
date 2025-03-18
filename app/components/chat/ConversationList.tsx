@@ -144,13 +144,19 @@ export default function ConversationList({
                 <div className="flex items-center">
                   <div className="relative mr-3">
                     <div className="w-12 h-12 rounded-full overflow-hidden">
-                      <Image
-                        src={getConversationAvatar(conversation)}
-                        alt={getConversationName(conversation)}
-                        width={48}
-                        height={48}
-                        className="object-cover"
-                      />
+                      {getConversationAvatar(conversation) && getConversationAvatar(conversation).trim() !== '' ? (
+                        <Image
+                          src={getConversationAvatar(conversation)}
+                          alt={getConversationName(conversation)}
+                          width={48}
+                          height={48}
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white rounded-full">
+                          {getConversationName(conversation)?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
                     </div>
                     
                     {/* オンラインステータス - 実装例 */}

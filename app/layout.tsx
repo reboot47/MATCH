@@ -9,6 +9,9 @@ import { MissionProvider } from "./contexts/MissionContext";
 import { BoostProvider } from "./contexts/BoostContext";
 import { FavoritesProvider } from "./components/FavoritesContext";
 
+// デバッグパネルコンポーネントは別のClient Componentとして実装し、デバッガーが必要な場合は
+// 個別のページやクライアントコンポーネントからインポートする方針に変更
+
 // 日英両対応フォントの設定
 const inter = Inter({
   subsets: ['latin'],
@@ -82,6 +85,9 @@ export default function RootLayout({
                   <FavoritesProvider>
                     <div className="mx-auto max-w-7xl">
                       {children}
+                      
+                      {/* デバッグパネルはServerコンポーネントのレイアウトには配置せず、
+                          必要な場合は個別のクライアントコンポーネント内で使用する */}
                     </div>
                   </FavoritesProvider>
                 </BoostProvider>

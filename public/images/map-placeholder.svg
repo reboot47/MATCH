@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="600" height="300" viewBox="0 0 600 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="600" height="300" fill="#f5f5f5"/>
+  
+  <!-- Map grid pattern -->
+  <g opacity="0.2">
+    <path d="M0 30H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 60H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 90H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 120H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 150H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 180H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 210H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 240H600" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M0 270H600" stroke="#9CA3AF" stroke-width="1"/>
+    
+    <path d="M30 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M60 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M90 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M120 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M150 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M180 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M210 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M240 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M270 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M300 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M330 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M360 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M390 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M420 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M450 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M480 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M510 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M540 0V300" stroke="#9CA3AF" stroke-width="1"/>
+    <path d="M570 0V300" stroke="#9CA3AF" stroke-width="1"/>
+  </g>
+  
+  <!-- Location Pin -->
+  <g transform="translate(300, 150)">
+    <!-- Pin shadow -->
+    <ellipse cx="0" cy="30" rx="15" ry="5" fill="#9CA3AF" opacity="0.3"/>
+    
+    <!-- Pin body -->
+    <path d="M0 -30C-16.5685 -30 -30 -16.5685 -30 0C-30 16.5685 -16.5685 30 0 30C16.5685 30 30 16.5685 30 0C30 -16.5685 16.5685 -30 0 -30ZM0 15C-8.28427 15 -15 8.28427 -15 0C-15 -8.28427 -8.28427 -15 0 -15C8.28427 -15 15 -8.28427 15 0C15 8.28427 8.28427 15 0 15Z" fill="#4B5563"/>
+    
+    <!-- Center circle -->
+    <circle cx="0" cy="0" r="8" fill="#4B5563"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="300" y="220" font-family="Arial, sans-serif" font-size="14" fill="#4B5563" text-anchor="middle">地図が読み込めません</text>
+  
+  <!-- Roads -->
+  <path d="M150 150H450" stroke="#9CA3AF" stroke-width="4"/>
+  <path d="M300 50V250" stroke="#9CA3AF" stroke-width="4"/>
+</svg>

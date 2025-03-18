@@ -8,24 +8,25 @@ import AppointmentModal from '@/app/components/chat/AppointmentModal';
 import { motion } from 'framer-motion';
 import { useUser } from '../../../../components/UserContext';
 import toast from 'react-hot-toast';
+import { Message as AppMessage, AttachmentUnion } from '@/app/types/chat';
 
-// メッセージタイプの定義
-type MessageType = 'date' | 'text' | 'notification';
+// ページ固有のメッセージ型定義
+type UIMessageType = 'date' | 'text' | 'notification';
 
-// メッセージの基本インターフェース
-interface BaseMessage {
+// 基本メッセージインターフェース
+interface BaseUIMessage {
   id: string;
-  type: MessageType;
+  type: UIMessageType;
 }
 
 // 日付表示用メッセージ
-interface DateMessage extends BaseMessage {
+interface DateUIMessage extends BaseUIMessage {
   type: 'date';
   date: string;
 }
 
 // テキストメッセージ
-interface TextMessage extends BaseMessage {
+interface TextUIMessage extends BaseUIMessage {
   type: 'text';
   content: string;
   timestamp: string;
@@ -53,17 +54,20 @@ interface TextMessage extends BaseMessage {
 }
 
 // 通知メッセージ
-interface NotificationMessage extends BaseMessage {
+interface NotificationUIMessage extends BaseUIMessage {
   type: 'notification';
   content: string;
   actionButton?: string;
 }
 
-// すべてのメッセージタイプの統合型
-type Message = DateMessage | TextMessage | NotificationMessage;
+// UIで使用するメッセージ型
+type UIMessage = DateUIMessage | TextUIMessage | NotificationUIMessage;
+
+// MessageInputに渡すMessage型とUIメッセージの型を区別する
+type Message = AppMessage;
 
 // Mock data for chat messages - ※画像を参考に修正
-const mockMessages: Message[] = [
+const mockMessages: UIMessage[] = [
   {
     id: '1',
     type: 'date',
@@ -129,7 +133,7 @@ export default function ChatDetail({ params }: ChatParams) {
   // Next.js 15ではparamsがPromiseになったため、use()を使用してアンラップする
   const userContext = useUser();
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
-  const [mockMessagesState, setMockMessages] = useState<Message[]>(mockMessages);
+  const [mockMessagesState, setMockMessages] = useState<UIMessage[]>(mockMessages);
   const [isTyping, setIsTyping] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{id: string, content: string, isMe: boolean} | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -264,8 +268,11 @@ export default function ChatDetail({ params }: ChatParams) {
   };
 
   // テキストメッセージ送信ハンドラー
-  const handleSendMessage = useCallback((content: string, attachments?: any[]) => {
-    if (!content.trim() && (!attachments || attachments.length === 0)) return;
+  const handleSendMessage = useCallback((content: string | undefined | null, attachments?: any[]) => {
+    // contentがnullまたはundefinedの場合空文字列に変換
+    const contentStr = typeof content === 'string' ? content : '';
+    
+    if (!contentStr.trim() && (!attachments || attachments.length === 0)) return;
     
     // ポイントのチェック
     if (currentPoints < requiredPoints) {
@@ -291,7 +298,7 @@ export default function ChatDetail({ params }: ChatParams) {
     
     // URLの検出とプレビュー情報を準備
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const urls = content.match(urlRegex);
+    const urls = contentStr.match(urlRegex);
     let urlAttachments: any[] = [];
     
     if (urls && urls.length > 0) {
@@ -306,10 +313,10 @@ export default function ChatDetail({ params }: ChatParams) {
     }
     
     // 新しいメッセージオブジェクトを作成
-    const newMessage: TextMessage = {
+    const newMessage: TextUIMessage = {
       id: `msg-${Date.now()}`,
       type: 'text',
-      content: content,
+      content: contentStr,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
       isRead: false,
@@ -371,7 +378,7 @@ export default function ChatDetail({ params }: ChatParams) {
       
       setTimeout(() => {
         setIsTyping(false);
-        const replyMessage: TextMessage = {
+        const replyMessage: TextUIMessage = {
           id: `msg-${Date.now() + 1}`,
           type: 'text',
           content: '了解しました！ありがとうございます😊\nまたお気軽にお声がけください♪',
@@ -416,7 +423,7 @@ export default function ChatDetail({ params }: ChatParams) {
   const markMessagesAsRead = useCallback((specificIds?: string[]) => {
     // 未読メッセージが存在するかチェック
     const hasUnread = mockMessagesState.some(
-      m => m.type === 'text' && !m.isMe && !(m as TextMessage).isRead && 
+      m => m.type === 'text' && !m.isMe && !(m as TextUIMessage).isRead && 
            (!specificIds || specificIds.includes(m.id))
     );
     
@@ -424,7 +431,7 @@ export default function ChatDetail({ params }: ChatParams) {
     if (hasUnread) {
       setMockMessages(prev => 
         prev.map(message => {
-          if (message.type === 'text' && !message.isMe && !(message as TextMessage).isRead &&
+          if (message.type === 'text' && !message.isMe && !(message as TextUIMessage).isRead &&
               (!specificIds || specificIds.includes(message.id))) {
             // デバッグ情報
             console.log(`メッセージを既読にしました: ID ${message.id}`);
@@ -442,7 +449,7 @@ export default function ChatDetail({ params }: ChatParams) {
       } else {
         // 一部のメッセージを既読にした場合は未読カウントを再計算
         const remainingUnread = mockMessagesState.filter(
-          m => m.type === 'text' && !m.isMe && !(m as TextMessage).isRead && 
+          m => m.type === 'text' && !m.isMe && !(m as TextUIMessage).isRead && 
                !specificIds.includes(m.id)
         ).length;
         setUnreadCount(remainingUnread);
@@ -516,7 +523,7 @@ export default function ChatDetail({ params }: ChatParams) {
         
         // 相手からのメッセージが画面に表示された場合のみ処理
         const message = mockMessagesState.find(m => m.id === messageId);
-        if (!message || message.type !== 'text' || message.isMe || (message as TextMessage).isRead) return;
+        if (!message || message.type !== 'text' || message.isMe || (message as TextUIMessage).isRead) return;
         
         if (entry.isIntersecting) {
           // メッセージが画面に表示された
@@ -676,7 +683,7 @@ export default function ChatDetail({ params }: ChatParams) {
   useEffect(() => {
     // 未読メッセージをカウント
     const countUnread = mockMessagesState.filter(
-      m => m.type === 'text' && !m.isMe && !(m as TextMessage).isRead
+      m => m.type === 'text' && !m.isMe && !(m as TextUIMessage).isRead
     ).length;
     
     // 変更が必要な場合のみ更新
@@ -801,7 +808,7 @@ export default function ChatDetail({ params }: ChatParams) {
     lastSeen: mockUser?.lastSeen || '',
     onBackClick: handleBackClick,
     onCallClick: () => console.log('Call clicked'),
-    onVideoClick: () => console.log('Video clicked'),
+    onVideoClick: () => router.push(`/video-call/${chatId}`),
     onInfoClick: () => console.log('Info clicked'),
     onAppointmentClick: () => setIsAppointmentModalOpen(true),
     isFavorite,
@@ -909,8 +916,8 @@ export default function ChatDetail({ params }: ChatParams) {
             } else if (message.type === 'text') {
               // 通常のテキストメッセージ
               // 最初の未読メッセージの位置を参照に設定
-              const isFirstUnread = !message.isMe && !(message as TextMessage).isRead && 
-                           !mockMessagesState.slice(0, index).some(m => m.type === 'text' && !m.isMe && !(m as TextMessage).isRead);
+              const isFirstUnread = !message.isMe && !(message as TextUIMessage).isRead && 
+                           !mockMessagesState.slice(0, index).some(m => m.type === 'text' && !m.isMe && !(m as TextUIMessage).isRead);
               
               return (
                 <div 
@@ -985,7 +992,13 @@ export default function ChatDetail({ params }: ChatParams) {
         </div>
         
         <MessageInput 
-          onSendMessage={handleSendMessage}
+          onSendMessage={async (message: AppMessage) => {
+            // メッセージオブジェクトからテキストと添付ファイルを抽出
+            const content = typeof message.content === 'string' ? message.content : '';
+            const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+            handleSendMessage(content, attachments);
+            return Promise.resolve();
+          }}
           onPointsUpdated={handlePointsUpdated}
           disabled={currentPoints < requiredPoints}
           placeholder={currentPoints < requiredPoints ? "ポイントが足りません" : "メッセージを入力..."}
@@ -994,6 +1007,7 @@ export default function ChatDetail({ params }: ChatParams) {
           gender={'male'}
           onTypingStart={() => setIsTyping(true)}
           onTypingEnd={() => setIsTyping(false)}
+          chatId={chatId} // 正しく抽出されたchatIdを渡す
         />
         
         {/* 入力中表示 - LINE風タイピングインジケーター */}

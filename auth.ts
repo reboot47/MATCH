@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
@@ -6,6 +6,11 @@ import { NextRequest } from "next/server";
 import { JWT } from "next-auth/jwt";
 import { v4 as uuidv4 } from "uuid";
 import { sha256 } from 'js-sha256';
+
+// Node.js環境でのみ利用可能なコンソールログ
+if (typeof window === 'undefined') {
+  console.log('Auth設定を初期化中... (サーバー側)');
+}
 
 // パスワードハッシュ関数
 function hashPassword(password: string): string {
@@ -98,7 +103,7 @@ const mockUsers = [
 ];
 
 // Auth.js Config
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const authConfig: NextAuthConfig = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -221,4 +226,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
     }
   }
-});
+};
+
+// NextAuth v5のApp Router用に設定をエクスポート
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+
+// デバッグ用
+const authDebug = { handlers, auth, authConfig };
+console.log("Auth configuration loaded:", typeof authDebug.auth !== 'undefined' ? "AUTH OK" : "AUTH MISSING");
+console.log("Auth handlers loaded:", typeof authDebug.handlers !== 'undefined' ? "HANDLERS OK" : "HANDLERS MISSING");

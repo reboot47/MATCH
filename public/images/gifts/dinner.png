@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" fill="#E8F5E9"/>
+  <circle cx="64" cy="64" r="50" fill="#FFFFFF" stroke="#BDBDBD" stroke-width="2"/>
+  <rect x="34" y="60" width="60" height="4" fill="#9E9E9E"/>
+  <circle cx="50" cy="50" r="15" fill="#EEEEEE" stroke="#9E9E9E" stroke-width="1"/>
+  <circle cx="78" cy="50" r="8" fill="#EEEEEE" stroke="#9E9E9E" stroke-width="1"/>
+  <rect x="40" y="75" width="48" height="4" rx="2" fill="#9E9E9E"/>
+  <text x="64" y="100" text-anchor="middle" font-size="12" fill="#333333">ロマンチックディナー</text>
+</svg>

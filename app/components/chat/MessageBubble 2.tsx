@@ -183,7 +183,7 @@ export default function MessageBubble({
       {!isMine && showAvatar && (
         <div className="mr-2 flex-shrink-0">
           <div className="relative w-8 h-8 rounded-full overflow-hidden">
-            {senderAvatar ? (
+            {senderAvatar && senderAvatar.trim() !== '' ? (
               <Image
                 src={senderAvatar}
                 alt={senderName || ''}

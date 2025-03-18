@@ -71,8 +71,28 @@ export default function ChatRoom({
   
   // メッセージ送信ハンドラー
   const handleSendMessage = (content: string, attachments: any[]) => {
+    console.log('ChatRoom: メッセージ送信開始', { content, attachmentsCount: attachments.length });
+    
+    // 添付ファイルの詳細をログ
+    if (attachments && attachments.length > 0) {
+      console.log('ChatRoom: 添付ファイル詳細:', attachments.map(a => ({
+        type: a.type,
+        id: a.id,
+        ...(a.type === 'gift' ? { 
+          giftId: a.giftId,
+          giftName: a.giftName,
+          giftImageUrl: a.giftImageUrl,
+          animation: a.animation 
+        } : {})
+      })));
+    }
+    
+    // 送信処理を実行
     onSendMessage(conversation.id, content, attachments);
-    setReplyToMessage(null); // 返信をリセット
+    console.log('ChatRoom: メッセージ送信完了');
+    
+    // 返信状態をリセット
+    setReplyToMessage(null);
   };
   
   // リアクション追加ハンドラー
@@ -195,7 +215,7 @@ export default function ChatRoom({
   const messageGroups = groupMessagesByDate();
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-50">
       {/* ヘッダー */}
       <div className="flex items-center p-3 border-b border-gray-200">
         <button onClick={onBackClick} className="p-2 mr-2 text-gray-600 hover:bg-gray-100 rounded-full">
@@ -204,13 +224,19 @@ export default function ChatRoom({
         
         <div className="relative mr-3">
           <div className="w-10 h-10 rounded-full overflow-hidden">
-            <Image
-              src={getConversationAvatar()}
-              alt={getConversationName()}
-              width={40}
-              height={40}
-              className="object-cover"
-            />
+            {getConversationAvatar() && getConversationAvatar().trim() !== '' ? (
+              <Image
+                src={getConversationAvatar()}
+                alt={getConversationName()}
+                width={40}
+                height={40}
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-300 flex items-center justify-center text-white">
+                {getConversationName()?.charAt(0).toUpperCase() || '?'}
+              </div>
+            )}
           </div>
           
           {!conversation.isGroup && (
@@ -249,7 +275,7 @@ export default function ChatRoom({
       </div>
       
       {/* メッセージエリア */}
-      <div className="flex-1 overflow-y-auto p-4 bg-white">
+      <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-gray-100">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-500">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -294,13 +320,23 @@ export default function ChatRoom({
       </div>
       
       {/* 入力エリア */}
-      <div className="border-t border-gray-200">
+      <div className="border-t border-gray-200 dark:border-gray-300 bg-white dark:bg-gray-100 p-2">
         {renderReplyBanner()}
         <MessageInput
-          onSendMessage={handleSendMessage}
+          onSendMessage={async (message: Message) => {
+            // メッセージオブジェクトから必要な情報を取り出してhandleSendMessageに渡す
+            const content = typeof message.content === 'string' ? message.content : '';
+            const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+            handleSendMessage(content, attachments);
+            return Promise.resolve();
+          }}
           onTypingStart={onTypingStart}
           onTypingEnd={onTypingEnd}
           placeholder="メッセージを入力..."
+          gender="male"
+          currentPoints={100}
+          requiredPoints={5}
+          chatId={conversation.id}
         />
       </div>
     </div>

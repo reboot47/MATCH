@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { Camera, RotateCcw } from 'lucide-react';

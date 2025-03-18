@@ -48,6 +48,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = (props) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   
+  // ビデオ通話ページに移動
+  const handleVideoCall = () => {
+    if (partnerId) {
+      router.push(`/video-call/${partnerId}`);
+    } else {
+      console.error('パートナーIDが設定されていません');
+    }
+  };
+  
   // メニュー外クリックでメニューを閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -152,9 +161,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = (props) => {
           </button>
         )}
 
-        {onVideoClick && (
+        {(
           <button
-            onClick={onVideoClick}
+            onClick={handleVideoCall}
             className="p-2 text-gray-600 hover:text-primary-500 hover:bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
             aria-label="ビデオ通話"
           >

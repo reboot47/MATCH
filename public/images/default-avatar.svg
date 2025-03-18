@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" fill="#E6FFFA"/>
-  <path d="M256 256C297.9 256 332 221.9 332 180C332 138.1 297.9 104 256 104C214.1 104 180 138.1 180 180C180 221.9 214.1 256 256 256ZM256 284C210.7 284 120 306.7 120 352V376H392V352C392 306.7 301.3 284 256 284Z" fill="#4FD1C5"/>
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="200" cy="200" r="200" fill="#E6FFFA"/>
+  <circle cx="200" cy="150" r="70" fill="#4FD1C5"/>
+  <path d="M200 250C133 250 80 283.5 80 350H320C320 283.5 267 250 200 250Z" fill="#4FD1C5"/>
 </svg>

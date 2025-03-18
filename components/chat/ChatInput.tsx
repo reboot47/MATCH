@@ -3,18 +3,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Mic, Camera, Image as ImageIcon, MapPin, Sticker, Smile, X, Send, Paperclip, Trash2 } from 'lucide-react';
+import { Mic, Camera, Image as ImageIcon, MapPin, Sticker, Smile, X, Send, Paperclip, Trash2, Gift } from 'lucide-react';
+import { useUser } from '@/components/UserContext';
 import AttachmentMenu from './AttachmentMenu';
 import CameraCapture from './CameraCapture';
-import AudioRecorder from './AudioRecorder';
+import dynamic from 'next/dynamic';
 import LocationPicker from './LocationPicker';
+
+// AudioRecorderをクライアントサイドでのみロードするようにdynamic importを使用
+const AudioRecorder = dynamic(() => import('./AudioRecorder'), {
+  ssr: false,
+});
+import GiftSelector from './GiftSelector';
+import { Gift as GiftType } from '@/types/gift';
 
 interface ChatInputProps {
   onSendMessage: (content: string, attachments?: any[]) => void;
+  onSendGift?: (gift: GiftType, message: string) => void;
   isReplying?: boolean;
+  chatId: string;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isReplying = false }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendGift, isReplying = false, chatId }) => {
+  const { user } = useUser();
   console.log('ChatInput component rendering'); // 表示確認用ログ
   const [message, setMessage] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -24,7 +35,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isReplying = false
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
-  const [activeAttachmentType, setActiveAttachmentType] = useState<'camera' | 'audio' | 'location' | 'image' | null>(null);
+  const [activeAttachmentType, setActiveAttachmentType] = useState<'camera' | 'audio' | 'location' | 'image' | 'gift' | null>(null);
+  const [showGiftSelector, setShowGiftSelector] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
@@ -82,6 +94,22 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isReplying = false
   const handleAttachmentClick = () => {
     setShowAttachmentMenu(true);
     setActiveAttachmentType(null);
+  };
+
+  const handleGiftClick = () => {
+    if (user?.gender === '男性') {
+      setShowGiftSelector(true);
+    } else {
+      // 女性ユーザーには通知を表示
+      alert('ギフトの送信は男性ユーザーのみ可能です');
+    }
+  };
+
+  const handleGiftSelect = (gift: GiftType, message: string) => {
+    if (onSendGift) {
+      onSendGift(gift, message);
+    }
+    setShowGiftSelector(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -522,6 +550,21 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isReplying = false
         )}
       </AnimatePresence>
 
+      {/* Gift selector */}
+      <AnimatePresence>
+        {showGiftSelector && (
+          <GiftSelector
+            isOpen={showGiftSelector}
+            onClose={() => setShowGiftSelector(false)}
+            onSelect={handleGiftSelect}
+            context={{
+              chatId,
+              type: 'chat'
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <div className={`flex items-end ${isReplying ? 'border-l-2 border-[#06c755] pl-2' : ''}`}>
         <div className="flex space-x-2">
           <button
@@ -545,6 +588,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isReplying = false
             aria-label="Add emoji"
           >
             <Smile size={20} />
+          </button>
+          <button
+            onClick={handleGiftClick}
+            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-[#06c755] transition-colors rounded-full focus:outline-none"
+            aria-label="Send gift"
+          >
+            <Gift size={20} />
           </button>
         </div>
 

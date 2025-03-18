@@ -31,35 +31,44 @@ export default function LazyImage({
 }: LazyImageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState(placeholderSrc);
-
   // デフォルトのプロフィールプレースホルダー
   const profilePlaceholder = "/images/profile-placeholder.svg";
+  const defaultPlaceholder = isProfile ? profilePlaceholder : placeholderSrc;
+  
+  // srcが空または無効な場合は確実にプレースホルダーを使用
+  // 空の場合は必ずプレースホルダーを返す
+  const validSrc = src && typeof src === 'string' && src.trim() !== '' ? src : defaultPlaceholder;
+  
+  // 初期値も必ず有効な値にする
+  const [currentSrc, setCurrentSrc] = useState(defaultPlaceholder);
 
   useEffect(() => {
     // srcが変更されたときに状態をリセット
     setIsLoading(true);
     setHasError(false);
-    setCurrentSrc(isProfile ? profilePlaceholder : placeholderSrc);
-  }, [src, placeholderSrc, isProfile, profilePlaceholder]);
+    setCurrentSrc(defaultPlaceholder);
+  }, [validSrc, defaultPlaceholder]);
 
   // 画像読み込みの再試行関数
   const retryLoading = () => {
-    if (hasError) {
+    if (hasError && validSrc !== defaultPlaceholder) {
       setIsLoading(true);
       setHasError(false);
       // キャッシュバスティングのためにタイムスタンプを追加
-      const retrySrc = `${src}?retry=${new Date().getTime()}`;
-      const img = new Image();
-      img.src = retrySrc;
-      img.onload = () => {
-        setCurrentSrc(src);
-        setIsLoading(false);
-      };
-      img.onerror = () => {
-        setHasError(true);
-        setIsLoading(false);
-      };
+      const retrySrc = `${validSrc}?retry=${new Date().getTime()}`;
+      // ブラウザ環境でのみ実行するように修正
+      if (typeof window !== 'undefined') {
+        const img = new window.Image();
+        img.src = retrySrc;
+        img.onload = () => {
+          setCurrentSrc(validSrc);
+          setIsLoading(false);
+        };
+        img.onerror = () => {
+          setHasError(true);
+          setIsLoading(false);
+        };
+      }
     }
   };
 
@@ -80,21 +89,25 @@ export default function LazyImage({
       </AnimatePresence>
 
       {/* 非表示の本来の画像（プリロード用） */}
-      <Image
-        src={src}
-        alt=""
-        width={1}
-        height={1}
-        className="hidden"
-        onLoad={() => {
-          setCurrentSrc(src);
-          setIsLoading(false);
-        }}
-        onError={() => {
-          setHasError(true);
-          setIsLoading(false);
-        }}
-      />
+      {validSrc !== defaultPlaceholder && (
+        <Image
+          src={validSrc} // validSrcは終始有効な値
+          alt=""
+          width={1}
+          height={1}
+          className="hidden"
+          onLoad={() => {
+            console.log('【LazyImage】画像の読み込み成功:', validSrc);
+            setCurrentSrc(validSrc);
+            setIsLoading(false);
+          }}
+          onError={() => {
+            console.log('【LazyImage】画像読み込みエラー:', validSrc);
+            setHasError(true);
+            setIsLoading(false);
+          }}
+        />
+      )}
 
       {/* 表示用画像 */}
       <motion.div
@@ -110,9 +123,20 @@ export default function LazyImage({
           }
         }}
       >
+        {/* コンソールに表示するデバッグ情報 */}
+        <>{(() => { 
+          console.log('【LazyImage結果】', {
+            コンポーネント: 'LazyImage',
+            結果の画像URL: hasError ? defaultPlaceholder : currentSrc,
+            エラー発生: hasError,
+            読み込み中: isLoading
+          });
+          return null; 
+        })()}</>
+        
         <Image
-          src={hasError ? (isProfile ? profilePlaceholder : placeholderSrc) : currentSrc}
-          alt={alt}
+          src={hasError ? defaultPlaceholder : currentSrc} // 常にデフォルトまたは有効な値が設定される
+          alt={alt || '画像'} // altも必ず設定
           width={width}
           height={height}
           priority={priority || isProfile} // プロフィール画像は優先的に読み込む

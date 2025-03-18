@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Send, Play, Pause } from 'lucide-react';
 // @ts-ignore

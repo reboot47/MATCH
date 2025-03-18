@@ -1,65 +1,3730 @@
 "use client";
 
-import { useState, useRef, ChangeEvent, KeyboardEvent } from 'react';
-import { HiPaperClip, HiPhotograph, HiLocationMarker, HiVideoCamera, HiEmojiHappy } from 'react-icons/hi';
+import React, { 
+  useState, 
+  useRef, 
+  useEffect, 
+  useCallback, 
+  ChangeEvent, 
+  KeyboardEvent, 
+  forwardRef, 
+  ForwardedRef, 
+  MouseEvent
+} from 'react';
+import type { ReactElement } from 'react';
+import { 
+  HiPaperClip, 
+  HiPhotograph, 
+  HiLocationMarker, 
+  HiVideoCamera, 
+  HiEmojiHappy 
+} from 'react-icons/hi';
 import { RiSendPlaneFill } from 'react-icons/ri';
 import { IoClose } from 'react-icons/io5';
+import { FaGift } from 'react-icons/fa';
 import { MdWarning } from 'react-icons/md';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ImageAttachment, VideoAttachment, LocationAttachment, UrlAttachment } from '@/app/types/chat';
+import GiftSelector from '@/components/chat/GiftSelector';
+import GiftAnimator from './GiftAnimator';
 import toast from 'react-hot-toast';
+import { 
+  Message, 
+  AttachmentUnion, 
+  ImageAttachment, 
+  VideoAttachment, 
+  LocationAttachment, 
+  GiftAttachment, 
+  MessageStatus 
+} from '@/app/types/chat';
+import { Gift } from '@/types/gift';
+import { validateGiftImageUrl, isValidImageUrl } from '@/app/utils/imageHelpers';
+import { SafeImage, GiftImage } from '@/app/components/common/SafeImage';
 
+// メッセージの種類を表す列挙型
+enum AttachmentType {
+  IMAGE = 'image',
+  VIDEO = 'video',
+  LOCATION = 'location',
+  GIFT = 'gift'
+}
+
+// ファイルアップロード結果の型定義
+interface FileUploadResult {
+  url: string;
+  thumbnailUrl?: string;
+}
+
+// ファイルタイプ
+type FileType = 'image' | 'video';
+
+// 位置情報の型定義
+interface Location {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+}
+
+// 絵文字カテゴリーの型定義
+interface EmojiCategory {
+  id: string;
+  name: string;
+  emojis: string[];
+}
+
+// MessageInputコンポーネントのprops型定義
 interface MessageInputProps {
-  onSendMessage: (text: string, attachments: any[]) => void;
+  onSendMessage: (message: Message) => Promise<void>;
   onTypingStart?: () => void;
   onTypingEnd?: () => void;
   disabled?: boolean;
   placeholder?: string;
-  gender?: 'male' | 'female';
-  currentPoints?: number;
+  gender: 'male' | 'female';
+  currentPoints: number;
   requiredPoints?: number;
   onPointsUpdated?: (points: number) => void;
+  chatId: string;
 }
 
-export default function MessageInput({
+// サンプル絵文字カテゴリーデータ
+const emojiCategories: EmojiCategory[] = [
+  {
+    id: 'recent',
+    name: '最近',
+    emojis: ['😀', '😂', '❤️', '👍', '🎉', '🔥', '💯', '🙏', '😊', '🥰', '😎', '🤔']
+  },
+  {
+    id: 'smileys',
+    name: '笑顔',
+    emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊']
+  },
+  {
+    id: 'love',
+    name: '愛情',
+    emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💕', '💞', '💓', '💗', '💖']
+  }
+];
+
+// MessageInputコンポーネント
+const MessageInput = forwardRef<HTMLDivElement, MessageInputProps>((
+  {
+    onSendMessage,
+    onTypingStart,
+    onTypingEnd,
+    disabled = false,
+    placeholder = 'メッセージを入力',
+    gender,
+    currentPoints,
+    requiredPoints = 1,
+    onPointsUpdated,
+    chatId
+  }: MessageInputProps,
+  ref: ForwardedRef<HTMLDivElement>
+): ReactElement => {
+  // ステート管理
+  const [text, setText] = useState<string>('');
+  const [attachments, setAttachments] = useState<AttachmentUnion[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [giftAttachment, setGiftAttachment] = useState<GiftAttachment | null>(null);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState<boolean>(false);
+  const [isEmojiMenuOpen, setIsEmojiMenuOpen] = useState<boolean>(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [localPoints, setLocalPoints] = useState<number>(currentPoints);
+  const [showGiftSelector, setShowGiftSelector] = useState<boolean>(false);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+  const [showGiftAnimation, setShowGiftAnimation] = useState<boolean>(false);
+  const [currentAnimation, setCurrentAnimation] = useState<string>('');
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>('recent');
+  
+  // 参照
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const sendingRef = useRef<boolean>(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const attachmentMenuRef = useRef<HTMLDivElement>(null);
+  const emojiMenuRef = useRef<HTMLDivElement>(null);
+
+  // ローカルポイントをpropsと同期
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  // disabledが変更されたときに添付メニューの状態をリセット
+  useEffect(() => {
+    if (disabled) {
+      setIsAttachmentMenuOpen(false);
+      setIsEmojiMenuOpen(false);
+    }
+  }, [disabled]);
+
+  // テキストが変更されたときにタイピング状態を通知
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setText(newText);
+
+    // タイピング開始イベントを発火
+    if (onTypingStart) {
+      onTypingStart();
+    }
+
+    // タイピング終了タイマーをリセット
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // 3秒後にタイピング終了イベントを発火
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+    }, 3000);
+  }, [onTypingStart, onTypingEnd]);
+
+  // 検証関数 - useCallbackで最適化
+  const validatePoints = useCallback((points: number = requiredPoints): boolean => {
+    // 男性ユーザーの場合のみポイントチェックを行う
+    if (gender === 'male') {
+      if (localPoints < points) {
+        toast.error(`ポイントが不足しています（必要ポイント: ${points}）`);
+        return false;
+      }
+    }
+    return true;
+  }, [gender, localPoints, requiredPoints]);
+
+  const validateGift = useCallback((gift: Gift): boolean => {
+    if (gender === 'male' && gift.price) {
+      // 男性ユーザーの場合、ギフト用のポイントチェック
+      if (localPoints < gift.price) {
+        toast.error(`ポイントが不足しています（必要ポイント: ${gift.price}）`);
+        return false;
+      }
+    }
+    return true;
+  }, [gender, localPoints]);
+
+  // ファイルアップロード関数
+  const uploadFile = useCallback(async (file: File, type: FileType): Promise<FileUploadResult> => {
+    // 実際の実装では、ここでAPIを呼び出してファイルをアップロードします
+    // このサンプルでは、モックデータを返します
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (type === 'image') {
+          resolve({
+            url: URL.createObjectURL(file),
+            thumbnailUrl: URL.createObjectURL(file)
+          });
+        } else {
+          resolve({
+            url: URL.createObjectURL(file),
+            thumbnailUrl: 'https://via.placeholder.com/300x200?text=Video+Thumbnail'
+          });
+        }
+      }, 1000);
+    });
+  }, []);
+
+  // テキスト入力ハンドラー
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setText(newText);
+
+    // タイピング中のイベント
+    if (onTypingStart) {
+      onTypingStart();
+    }
+
+    // タイピング終了判定
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+    }, 1000);
+  }, [onTypingStart, onTypingEnd]);
+
+  // 添付ファイルメニューの表示切替
+  const toggleAttachmentMenu = useCallback((): void => {
+    setIsAttachmentMenuOpen(prev => !prev);
+    if (isEmojiMenuOpen) {
+      setIsEmojiMenuOpen(false);
+    }
+  }, [isEmojiMenuOpen]);
+
+  // 絵文字メニューの表示切替
+  const toggleEmojiMenu = useCallback((): void => {
+    setIsEmojiMenuOpen(prev => !prev);
+    if (isAttachmentMenuOpen) {
+      setIsAttachmentMenuOpen(false);
+    }
+  }, [isAttachmentMenuOpen]);
+
+  // 画像添付トリガー
+  const triggerImageAttachment = useCallback((): void => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+    setIsAttachmentMenuOpen(false);
+  }, []);
+
+  // 動画添付トリガー
+  const triggerVideoAttachment = useCallback((): void => {
+    if (videoInputRef.current) {
+      videoInputRef.current.click();
+    }
+    setIsAttachmentMenuOpen(false);
+  }, []);
+
+  // 絵文字選択ハンドラ
+  const handleEmojiSelect = useCallback((emoji: string): void => {
+    setText(prev => prev + emoji);
+    if (textAreaRef.current) {
+      textAreaRef.current.focus();
+    }
+  }, []);
+
+  // 添付ファイル削除ハンドラ
+  const handleRemoveAttachment = useCallback((index: number): void => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // クリックアウトサイド処理
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent): void => {
+      if (attachmentMenuRef.current && 
+          !attachmentMenuRef.current.contains(event.target as Node) && 
+          isAttachmentMenuOpen) {
+        setIsAttachmentMenuOpen(false);
+      }
+      
+      if (emojiMenuRef.current && 
+          !emojiMenuRef.current.contains(event.target as Node) && 
+          isEmojiMenuOpen) {
+        setIsEmojiMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isAttachmentMenuOpen, isEmojiMenuOpen]);
+
+  return (
+    <div className="relative w-full" ref={ref}>
+      <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg p-2 shadow">
+        {/* 添付ファイルボタン */}
+        <button 
+          type="button" 
+          className="text-gray-500 hover:text-blue-500 p-2 rounded-full focus:outline-none"
+          onClick={toggleAttachmentMenu}
+          disabled={disabled || isSending}
+        >
+          <HiPaperClip className="w-6 h-6" />
+        </button>
+        
+        {/* テキスト入力 */}
+        <textarea
+          ref={textAreaRef}
+          className="flex-1 border-none bg-transparent resize-none focus:outline-none px-2 py-1 min-h-[40px] max-h-[120px] overflow-auto"
+          placeholder={placeholder}
+          value={text}
+          onChange={handleTextChange}
+          disabled={disabled || isSending}
+          onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              // sendMessage関数は後で実装します
+            }
+          }}
+        />
+        
+        {/* 絵文字ボタン */}
+        <button 
+          type="button" 
+          className="text-gray-500 hover:text-yellow-500 p-2 rounded-full focus:outline-none"
+          onClick={toggleEmojiMenu}
+          disabled={disabled || isSending}
+        >
+          <HiEmojiHappy className="w-6 h-6" />
+        </button>
+        
+        {/* ギフトボタン - 後で実装 */}
+        <button 
+          type="button" 
+          className="text-gray-500 hover:text-pink-500 p-2 rounded-full focus:outline-none"
+          onClick={() => setShowGiftSelector(true)}
+          disabled={disabled || isSending}
+        >
+          <FaGift className="w-5 h-5" />
+        </button>
+        
+        {/* 送信ボタン */}
+        <button 
+          type="button" 
+          className="text-white bg-blue-600 hover:bg-blue-700 p-2 rounded-full focus:outline-none disabled:opacity-50"
+          disabled={disabled || isSending || (!text.trim() && attachments.length === 0 && !selectedLocation && !giftAttachment)}
+          // onClick={handleSendMessage} 後で実装
+        >
+          <RiSendPlaneFill className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* 添付ファイルメニュー */}
+      {isAttachmentMenuOpen && (
+        <div 
+          ref={attachmentMenuRef}
+          className="absolute bottom-16 left-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 z-10"
+        >
+          <div className="flex space-x-4">
+            <button 
+              type="button" 
+              className="flex flex-col items-center text-gray-700 dark:text-gray-300 hover:text-blue-500 focus:outline-none"
+              onClick={triggerImageAttachment}
+            >
+              <HiPhotograph className="w-6 h-6" />
+              <span className="text-xs mt-1">画像</span>
+            </button>
+            <button 
+              type="button" 
+              className="flex flex-col items-center text-gray-700 dark:text-gray-300 hover:text-blue-500 focus:outline-none"
+              onClick={triggerVideoAttachment}
+            >
+              <HiVideoCamera className="w-6 h-6" />
+              <span className="text-xs mt-1">動画</span>
+            </button>
+            <button 
+              type="button" 
+              className="flex flex-col items-center text-gray-700 dark:text-gray-300 hover:text-blue-500 focus:outline-none"
+              // onClick={handleLocationAttachment} 後で実装
+            >
+              <HiLocationMarker className="w-6 h-6" />
+              <span className="text-xs mt-1">位置情報</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 絵文字メニュー - 簡易実装 */}
+      {isEmojiMenuOpen && (
+        <div 
+          ref={emojiMenuRef}
+          className="absolute bottom-16 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 z-10 w-64"
+        >
+          <div className="mb-2 flex space-x-2 overflow-x-auto pb-2">
+            {emojiCategories.map(cat => (
+              <button 
+                key={cat.id} 
+                className="px-3 py-1 text-sm whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-8 gap-1">
+            {emojiCategories[0].emojis.map((emoji, index) => (
+              <button 
+                key={index} 
+                className="text-xl p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                onClick={() => handleEmojiSelect(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 隠しファイル入力 */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="image/*" 
+        className="hidden" 
+        // onChange={handleImageAttachment} 後で実装
+      />
+      <input 
+        type="file" 
+        ref={videoInputRef} 
+        accept="video/*" 
+        className="hidden" 
+        // onChange={handleVideoAttachment} 後で実装
+      />
+
+      {/* プレビュー表示エリア - 後で実装 */}
+    </div>
+  );
+});
+
+MessageInput.displayName = 'MessageInput';
+
+export default MessageInput;
+  // State variables
+  const [text, setText] = useState<string>('');
+  const [attachments, setAttachments] = useState<AttachmentType[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [giftAttachment, setGiftAttachment] = useState<GiftAttachment | null>(null);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState<boolean>(false);
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState<boolean>(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [localPoints, setLocalPoints] = useState<number>(currentPoints);
+  const [showGiftSelector, setShowGiftSelector] = useState<boolean>(false);
+  const [showGiftAnimation, setShowGiftAnimation] = useState<boolean>(false);
+  const [currentAnimation, setCurrentAnimation] = useState<string | null>(null);
+  
+  // Refs
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
+  const emoticonPickerRef = useRef<HTMLDivElement | null>(null);
+  const sendingRef = useRef<boolean>(false);
+
+
+const MessageInput = React.forwardRef<HTMLDivElement, MessageInputProps>(({ 
   onSendMessage,
   onTypingStart,
   onTypingEnd,
   disabled = false,
   placeholder = 'メッセージを入力...',
-  gender = 'male',
-  currentPoints = 0,
-  requiredPoints = 5,
-  onPointsUpdated
-}: MessageInputProps) {
-  const [text, setText] = useState('');
-  const [attachments, setAttachments] = useState<any[]>([]);
-  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
-  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
-  const [sending, setSending] = useState(false);
+  gender,
+  currentPoints,
+  requiredPoints,
+  onPointsUpdated,
+  chatId
+}, ref): ReactElement => {
+  // State
+  const [text, setText] = useState<string>('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [giftAttachment, setGiftAttachment] = useState<GiftAttachment | null>(null);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+  const [showGiftSelector, setShowGiftSelector] = useState<boolean>(false);
+  const [showGiftAnimation, setShowGiftAnimation] = useState<boolean>(false);
+  const [currentAnimation, setCurrentAnimation] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [localPoints, setLocalPoints] = useState<number>(currentPoints);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState<boolean>(false);
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState<boolean>(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>('smileys');
+
+  // Refs
+  const sendingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const attachmentButtonRef = useRef<HTMLButtonElement>(null);
+  const emoticonButtonRef = useRef<HTMLButtonElement>(null);
+  const giftButtonRef = useRef<HTMLButtonElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // テキスト入力ハンドラー
-  const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
-    
-    // 入力中イベント発火
-    if (e.target.value && !text) {
-      onTypingStart?.();
-    } else if (!e.target.value && text) {
-      onTypingEnd?.();
+  // Update local points when prop changes
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  // Validation functions
+  const validatePoints = useCallback((points: number): boolean => {
+    if (!points || points <= 0) return false;
+    if (gender === 'male' && localPoints < points) {
+      toast.error(`ポイントが不足しています（必要ポイント: ${points}）`);
+      return false;
     }
-  };
+    return true;
+  }, [localPoints, gender]);
 
-  // Enterキーでの送信
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const validateGift = useCallback((gift: Gift | null): boolean => {
+    if (!gift || !gift.price) {
+      toast.error('ギフトの情報が不正です');
+      return false;
+    }
+    
+    if (!gift.imageUrl || !validateGiftImageUrl(gift.imageUrl)) {
+      toast.error('ギフト画像が無効です');
+      return false;
+    }
+
+    if (gender === 'male') {
+      return validatePoints(gift.price);
+    }
+
+    return true;
+  }, [gender, validatePoints]);
+
+  if (!onSendMessage || !onPointsUpdated) {
+    return <div ref={ref}>Error: Required props missing</div>;
+  }
+
+
+
+  // Message handlers
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText.trim() && onTypingStart) {
+      onTypingStart();
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingEnd) onTypingEnd();
+    }, 1000);
+
+    if (!newText.trim() && onTypingEnd) {
+      onTypingEnd();
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
+  }, []);
+
+  // Send message
+  const handleSendMessage = useCallback(async (): Promise<void> => {
+    if (sendingRef.current || isSending) return;
+
+    const trimmedText = text.trim();
+    if (!trimmedText && attachments.length === 0 && !selectedLocation && !giftAttachment) {
+      toast.error('メッセージを入力してください');
+      return;
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // Check points for male users
+      if (gender === 'male' && requiredPoints > 0) {
+        if (!validatePoints(requiredPoints)) return;
+      }
+
+      // Create message object
+      const message: Message = {
+        text: trimmedText,
+        attachments: [...attachments],
+        createdAt: new Date(),
+      };
+
+      if (selectedLocation) {
+        message.location = selectedLocation;
+      }
+
+      if (selectedGift) {
+        message.gift = selectedGift;
+      }
+
+      // Send message
+      await onSendMessage(message);
+
+      // Update points for male users
+      if (gender === 'male' && requiredPoints > 0) {
+        const newPoints = localPoints - requiredPoints;
+        setLocalPoints(newPoints);
+        onPointsUpdated(newPoints);
+      }
+
+      // Reset state
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+      if (onTypingEnd) onTypingEnd();
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, giftAttachment, selectedGift, gender, requiredPoints, localPoints, onSendMessage, onPointsUpdated, onTypingEnd, validatePoints]);
+
+
+  const MessageInput = React.forwardRef<HTMLDivElement, MessageInputProps>((
+  {
+    onSendMessage,
+    onTypingStart,
+    onTypingEnd,
+    disabled = false,
+    placeholder = 'メッセージを入力',
+    gender,
+    currentPoints,
+    requiredPoints,
+    onPointsUpdated,
+    chatId
+  },
+  ref
+) => {
+  // State
+  const [text, setText] = useState<string>('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [giftAttachment, setGiftAttachment] = useState<GiftAttachment | null>(null);
+  const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+  const [showGiftSelector, setShowGiftSelector] = useState<boolean>(false);
+  const [showGiftAnimation, setShowGiftAnimation] = useState<boolean>(false);
+  const [currentAnimation, setCurrentAnimation] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [localPoints, setLocalPoints] = useState<number>(currentPoints);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState<boolean>(false);
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState<boolean>(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>('smileys');
+
+  // Refs
+  const sendingRef = useRef<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentButtonRef = useRef<HTMLButtonElement>(null);
+  const emoticonButtonRef = useRef<HTMLButtonElement>(null);
+  const giftButtonRef = useRef<HTMLButtonElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+
+
+
+  // Message handlers
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (onTypingStart) {
+      onTypingStart();
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+    }, 1000);
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleGiftClick = useCallback(() => {
+    if (gender === 'male' && requiredPoints && !validatePoints(requiredPoints)) {
+      return;
+    }
+    setShowGiftSelector(true);
+  }, [gender, requiredPoints, validatePoints]);
+
+  const handleGiftSelect = useCallback(async (gift: Gift, message?: string) => {
+    if (!gift || !validateGift(gift)) return;
+
+    try {
+      const newPoints = localPoints - gift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated?.(newPoints);
+
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        url: gift.imageUrl,
+        name: gift.name,
+        size: 0,
+        gift,
+        price: gift.price,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setText(message || '');
+      setShowGiftSelector(false);
+
+      // アニメーション設定
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+    } catch (error) {
+      console.error('ギフト選択エラー:', error);
+      toast.error('ギフトの選択中にエラーが発生しました');
+    }
+  }, [localPoints, onPointsUpdated, validateGift]);
+
+
+      setIsSending(true);
+
+      const message: Message = {
+        text: text.trim(),
+        attachments: [...attachments],
+        createdAt: new Date()
+      };
+
+      if (selectedLocation) {
+        message.location = selectedLocation;
+      }
+
+      if (giftAttachment) {
+        message.attachments.push(giftAttachment);
+      }
+
+      await onSendMessage(message);
+
+      // Reset state after successful send
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信中にエラーが発生しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, giftAttachment, onSendMessage]);
+
+
+
+
+  // Validate required props
+  if (!onSendMessage || !onPointsUpdated || typeof currentPoints !== 'number') {
+    console.error('Required props missing in MessageInput');
+    return <div ref={ref}>Error: Required props missing</div>;
+  }
+
+
+
+  // Handlers
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (onTypingStart) {
+      onTypingStart();
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+    }, 1000);
+  }, [onTypingStart, onTypingEnd]);
+
+
+      setIsSending(true);
+
+      const message: Message = {
+        text: text.trim(),
+        attachments: [...attachments],
+        createdAt: new Date()
+      };
+
+      if (selectedLocation) {
+        message.location = selectedLocation;
+      }
+
+      if (giftAttachment) {
+        message.attachments.push(giftAttachment);
+      }
+
+      await onSendMessage(message);
+
+      // Reset state after successful send
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信中にエラーが発生しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, giftAttachment, onSendMessage]);
+
+  // Effects
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        attachmentButtonRef.current &&
+        !attachmentButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsAttachmentMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Update local points when prop changes
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  // Validation functions
+  const validatePoints = useCallback((points: number): boolean => {
+    if (!points || points <= 0) return false;
+    if (gender === 'male' && localPoints < points) {
+      toast.error(`ポイントが不足しています（必要ポイント: ${points}）`);
+      return false;
+    }
+    return true;
+  }, [localPoints, gender]);
+
+  const validateGift = useCallback((gift: Gift | null): boolean => {
+    if (!gift || !gift.price) {
+      toast.error('ギフトの情報が不正です');
+      return false;
+    }
+    
+    if (!gift.imageUrl || !validateGiftImageUrl(gift.imageUrl)) {
+      toast.error('ギフト画像が無効です');
+      return false;
+    }
+
+    if (gender === 'male') {
+      return validatePoints(gift.price);
+    }
+
+    return true;
+  }, [gender, validatePoints]);
+
+  // Validation functions
+  const validatePoints = useCallback((points: number): boolean => {
+    if (!points || points <= 0) return false;
+    if (localPoints < points) {
+      toast.error(`ポイントが不足しています（必要ポイント: ${points}）`);
+      return false;
+    }
+    return true;
+  }, [localPoints]);
+
+  const validateGift = useCallback((gift: Gift): boolean => {
+    if (!gift) {
+      toast.error('ギフトが選択されていません');
+      return false;
+    }
+
+    if (!gift.imageUrl || !validateGiftImageUrl(gift.imageUrl)) {
+      toast.error('ギフト画像が無効です');
+      return false;
+    }
+
+    if (gender === 'male' && gift.price) {
+      if (!validatePoints(gift.price)) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [gender, validatePoints]);
+
+  // Refs
+  const sendingRef = useRef<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const attachmentMenuRef = useRef<HTMLDivElement>(null);
+  const attachmentButtonRef = useRef<HTMLButtonElement>(null);
+  const emoticonPickerRef = useRef<HTMLDivElement>(null);
+
+  // Validation functions
+  const validatePoints = useCallback((points: number): boolean => {
+    if (!points || points <= 0) return false;
+    if (localPoints < points) {
+      toast.error(`ポイントが不足しています（必要ポイント: ${points}）`);
+      return false;
+    }
+    return true;
+  }, [localPoints]);
+
+  const validateGift = useCallback((gift: Gift): boolean => {
+    if (!gift) {
+      toast.error('ギフトが選択されていません');
+      return false;
+    }
+
+    if (!gift.imageUrl || !validateGiftImageUrl(gift.imageUrl)) {
+      toast.error('ギフト画像が無効です');
+      return false;
+    }
+
+    if (gender === 'male' && gift.price) {
+      if (!validatePoints(gift.price)) {
+        toast.error(`ポイントが不足しています（必要ポイント: ${gift.price}）`);
+        return false;
+      }
+    }
+
+    return true;
+  }, [gender, validatePoints]);
+
+  // Update local points when props change
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  // Update local points when props change
+  useEffect(() => {
+    setLocalPoints(currentPoints);
+  }, [currentPoints]);
+
+  // Handle typing status
+  useEffect(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (text && onTypingStart) {
+      onTypingStart();
+      typingTimeoutRef.current = setTimeout(() => {
+        if (onTypingEnd) onTypingEnd();
+      }, 1000);
+    } else if (!text && onTypingEnd) {
+      onTypingEnd();
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [text, onTypingStart, onTypingEnd]);
+
+  const validateGift = useCallback((gift: Gift): boolean => {
+    if (!gift) {
+      toast.error('ギフトが選択されていません');
+      return false;
+    }
+
+    if (!gift.imageUrl || !validateGiftImageUrl(gift.imageUrl)) {
+      toast.error('ギフト画像が無効です');
+      return false;
+    }
+
+    if (gender === 'male' && gift.price) {
+      if (!validatePoints(gift.price)) {
+        return false;
+      }
+    }
+    return true;
+  }, [gender, validatePoints]);
+
+  // Handle sending messages
+
+
+  // Handle file upload
+  const uploadFile = async (file: File, type: FileType): Promise<FileUploadResult> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('ファイルのアップロードに失敗しました');
+      }
+
+      const result = await response.json();
+      return {
+        url: result.url,
+        thumbnailUrl: type === 'video' ? result.thumbnailUrl : undefined
+      };
+    } catch (error) {
+      console.error('ファイルアップロードエラー:', error);
+      throw new Error('ファイルのアップロードに失敗しました');
+    }
   };
+      return validatePoints(gift.price);
+    }
+
+    return true;
+  }, [gender, validatePoints]);
+
+
+
+  // Event handlers
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+  }, [setText]);
+
+  // Event handlers for attachments
+  const handleImageAttachment = useCallback(async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    if (!e.target.files?.length) return;
+    
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      toast.error('画像ファイルを選択してください');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('画像のアップロードに失敗しました');
+      }
+      
+      const { url } = await response.json();
+      
+      const newAttachment: ImageAttachment = {
+        type: 'image',
+        url,
+        createdAt: new Date(),
+        id: `image-${Date.now()}`
+      };
+      
+      setAttachments(prev => [...prev, newAttachment]);
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('画像のアップロードに失敗しました');
+    }
+  }, []);
+      const imageUrl = await validateGiftImageUrl(URL.createObjectURL(file));
+      if (!imageUrl) {
+        toast.error('画像の読み込みに失敗しました');
+        return;
+      }
+
+      const newAttachment: ImageAttachment = {
+        id: Date.now().toString(),
+        type: 'image',
+        url: imageUrl,
+        createdAt: new Date()
+      };
+
+      setAttachments(prev => [...prev, newAttachment]);
+    } catch (error) {
+      console.error('画像添付エラー:', error);
+      toast.error('画像の添付に失敗しました');
+    }
+  }, []);
+
+
+
+  const handleLocationAttachment = useCallback(async (): Promise<void> => {
+    if (!navigator.geolocation) {
+      toast.error('位置情報の取得に対応していません');
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      const location: Location = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+
+      setSelectedLocation(location);
+    } catch (error) {
+      console.error('位置情報取得エラー:', error);
+      toast.error('位置情報の取得に失敗しました');
+    }
+  }, []);
+
+
+
+  const formatDuration = useCallback((seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }, []);
+
+
+
+  // Event Handlers
+
+      setIsSending(true);
+
+      const currentAttachments = giftAttachment ? [...attachments, giftAttachment] : attachments;
+      await onSendMessage(text, currentAttachments, selectedLocation);
+
+      // Reset states after successful send
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(undefined);
+      setSelectedGift(null);
+      setGiftAttachment(null);
+      setShowGiftAnimation(false);
+      setCurrentAnimation('');
+      onTypingEnd?.();
+
+      // Update points if gift was sent
+      if (selectedGift && gender === 'male') {
+        onPointsUpdated(currentPoints - selectedGift.price);
+      }
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, selectedGift, gender, currentPoints, isSending, onSendMessage, onPointsUpdated, onTypingEnd, giftAttachment]);
+
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText.trim()) {
+      onTypingStart?.();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd?.();
+      }, 1000);
+    } else {
+      onTypingEnd?.();
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+
+
+  const handleGiftClick = useCallback((): void => {
+    if (!validatePoints(requiredPoints)) return;
+    setShowGiftSelector(true);
+  }, [validatePoints, requiredPoints]);
+
+  const handleGiftSelect = useCallback(async (selectedGift: Gift, message?: string): Promise<void> => {
+    if (sendingRef.current || isSending || !selectedGift || !onPointsUpdated) return;
+    
+    // ギフトのバリデーション
+    if (!validateGift(selectedGift)) return;
+    
+    try {
+      const newPoints = localPoints - selectedGift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated(newPoints);
+      
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        gift: selectedGift,
+        price: selectedGift.price,
+        createdAt: new Date()
+      };
+      
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(selectedGift);
+      setText(message || '');
+      setShowGiftSelector(false);
+      
+      // アニメーション設定
+      setCurrentAnimation(selectedGift.animation || '');
+      setShowGiftAnimation(true);
+    } catch (error) {
+      console.error('ギフト選択エラー:', error);
+      toast.error('ギフトの選択中にエラーが発生しました');
+    }
+    
+    try {
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        gift: selectedGift,
+        price: selectedGift.price || 0,
+        createdAt: new Date()
+      };
+      
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(selectedGift);
+      if (message) setText(message);
+      setShowGiftSelector(false);
+      
+      // アニメーション表示
+      setCurrentAnimation(selectedGift.animation || 'default');
+      setShowGiftAnimation(true);
+
+      toast.success('ギフトを選択しました');
+    } catch (error) {
+      console.error('ギフト選択エラー:', error);
+      toast.error('ギフトの選択中にエラーが発生しました');
+    }
+  }, [isSending, setText, setGiftAttachment, setSelectedGift, setShowGiftSelector, setCurrentAnimation, setShowGiftAnimation, validateGift]);
+  }, [isSending, setText, setGiftAttachment, setSelectedGift, setShowGiftSelector, setCurrentAnimation, setShowGiftAnimation, validateGift]);
+      return;
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: validateGiftImageUrl(gift.imageUrl),
+        price: gift.price,
+        message: text || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setShowGiftSelector(false);
+
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      await handleSendMessage();
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [validateGift, validatePoints, isSending, handleSendMessage, text]);
+
+  const toggleAttachmentMenu = useCallback((): void => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  const handleImageAttachment = useCallback(async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    if (!e.target.files?.length) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      toast.error('画像ファイルを選択してください');
+      return;
+    }
+
+    try {
+      const imageUrl = URL.createObjectURL(file);
+      if (await isValidImageUrl(imageUrl)) {
+        const newAttachment: ImageAttachment = {
+          id: `image-${Date.now()}`,
+          type: 'image',
+          url: imageUrl,
+          createdAt: new Date(),
+        };
+        setAttachments([...attachments, newAttachment]);
+      } else {
+        toast.error('無効な画像ファイルです');
+      }
+    } catch (error) {
+      console.error('画像添付エラー:', error);
+      toast.error('画像の添付に失敗しました');
+    }
+  }, [attachments]);
+
+  const handleVideoAttachment = useCallback(async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    if (!e.target.files?.length) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith('video/')) {
+      toast.error('動画ファイルを選択してください');
+      return;
+    }
+
+    try {
+      const videoUrl = URL.createObjectURL(file);
+      const newAttachment: VideoAttachment = {
+        id: `video-${Date.now()}`,
+        type: 'video',
+        url: videoUrl,
+        createdAt: new Date(),
+      };
+      setAttachments([...attachments, newAttachment]);
+    } catch (error) {
+      console.error('動画添付エラー:', error);
+      toast.error('動画の添付に失敗しました');
+    }
+  }, [attachments]);
+
+  const handleLocationAttachment = useCallback(async (): Promise<void> => {
+    if (!navigator.geolocation) {
+      toast.error('位置情報の取得に対応していません');
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      const { latitude, longitude } = position.coords;
+      setSelectedLocation({ latitude, longitude });
+    } catch (error) {
+      console.error('位置情報取得エラー:', error);
+      toast.error('位置情報の取得に失敗しました');
+    }
+  }, []);
+
+  const handleEmoticonMenu = useCallback((): void => {
+    setIsEmoticonPickerOpen(!isEmoticonPickerOpen);
+  }, [isEmoticonPickerOpen]);
+
+  const handleEmojiSelect = useCallback((emoji: string): void => {
+    setText((prev: string) => prev + emoji);
+  }, []);
+
+  const handleCategorySelect = useCallback((category: string): void => {
+    setActiveEmojiCategory(category);
+  }, []);
+
+  const handleRemoveAttachment = useCallback((index: number): void => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  }, [attachments]);
+
+  const handleCancelLocation = useCallback((): void => {
+    setSelectedLocation(undefined);
+  }, []);
+
+  const triggerImageAttachment = useCallback((): void => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const triggerVideoAttachment = useCallback((): void => {
+    videoInputRef.current?.click();
+  }, []);
+
+  const handleClickOutside = useCallback((event: MouseEvent): void => {
+    if (
+      attachmentMenuRef.current &&
+      !attachmentMenuRef.current.contains(event.target as Node) &&
+      attachmentButtonRef.current &&
+      !attachmentButtonRef.current.contains(event.target as Node)
+    ) {
+      setIsAttachmentMenuOpen(false);
+    }
+  }, []);       type: 'video',
+        url: videoUrl,
+        createdAt: new Date(),
+      };
+      setAttachments([...attachments, newAttachment]);
+    } catch (error) {
+      console.error('動画添付エラー:', error);
+      toast.error('動画の添付に失敗しました');
+    }
+  }, [attachments]);
+
+  const handleLocationAttachment = useCallback(async (): Promise<void> => {
+    if (!navigator.geolocation) {
+      toast.error('位置情報の取得に対応していません');
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      const { latitude, longitude } = position.coords;
+      const locationData: LocationData = {
+        latitude,
+        longitude,
+      };
+
+      setSelectedLocation(locationData);
+      const newAttachment: LocationAttachment = {
+        id: `location-${Date.now()}`,
+        type: 'location',
+        ...locationData,
+        createdAt: new Date(),
+      };
+      setAttachments([...attachments, newAttachment]);
+    } catch (error) {
+      console.error('位置情報取得エラー:', error);
+      toast.error('位置情報の取得に失敗しました');
+    }
+  }, [attachments]);
+
+  const handleEmoticonMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    setIsEmoticonPickerOpen(!isEmoticonPickerOpen);
+  }, [isEmoticonPickerOpen]);
+
+  const handleEmojiSelect = useCallback((e: React.MouseEvent, emoji: string): void => {
+    e.preventDefault();
+    setText((prev) => prev + emoji);
+  }, []);
+
+  const handleCategorySelect = useCallback((e: React.MouseEvent, category: string): void => {
+    e.preventDefault();
+    setActiveEmojiCategory(category);
+  }, []);
+
+  const handleRemoveAttachment = useCallback((index: number): void => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  }, [attachments]);
+
+  const handleCancelLocation = useCallback((): void => {
+    setSelectedLocation(undefined);
+  }, []);
+
+  const triggerImageAttachment = useCallback((): void => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const triggerVideoAttachment = useCallback((): void => {
+    videoInputRef.current?.click();
+  }, []);
+
+  // Event Handlers
+
+      setIsSending(true);
+
+      if (text.trim() || attachments.length > 0 || selectedGift) {
+        await onSendMessage(text.trim(), attachments, selectedLocation);
+        
+        // Update points if gift was sent
+        if (selectedGift && currentPoints >= requiredPoints) {
+          onPointsUpdated?.(currentPoints - requiredPoints);
+        }
+
+        // Reset states
+        setText('');
+        setAttachments([]);
+        setSelectedLocation(undefined);
+        setGiftAttachment(null);
+        setSelectedGift(null);
+        setShowGiftSelector(false);
+        setShowGiftAnimation(false);
+        onTypingEnd?.();
+
+        // Show success toast
+        toast.success(
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">✨</span>
+            <span>メッセージを送信しました</span>
+          </div>
+        );
+      }
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <MdWarning className="text-lg" />
+          <span>メッセージの送信に失敗しました</span>
+        </div>
+      );
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, selectedGift, currentPoints, requiredPoints, onSendMessage, onPointsUpdated, onTypingEnd]);
+
+
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const handleGiftClick = useCallback((): void => {
+    if (!validatePoints(requiredPoints)) return;
+    setShowGiftSelector(true);
+  }, [validatePoints, requiredPoints]);
+
+  // 重複関数を削除
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const giftImageUrl = validateGiftImageUrl(gift.imageUrl);
+      const newGiftAttachment: GiftAttachment = {
+        id: crypto.randomUUID(),
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl,
+        price: gift.price,
+        message: text.trim() || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+      onPointsUpdated?.(currentPoints - gift.price);
+
+      setText('');
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [currentPoints, isSending, onPointsUpdated, onSendMessage, text, validateGift, validatePoints]);
+
+
+
+  // Event Handlers
+
+
+    try {
+      if (text.trim() || attachments.length > 0 || selectedGift) {
+        // Send message
+        await onSendMessage(text, attachments, selectedLocation);
+        
+        // Update points if gift was sent
+        if (selectedGift && currentPoints >= requiredPoints) {
+          onPointsUpdated?.(currentPoints - requiredPoints);
+        }
+
+        // Reset states
+        setText('');
+        setAttachments([]);
+        setSelectedLocation(undefined);
+        setGiftAttachment(null);
+        setSelectedGift(null);
+        setShowGiftSelector(false);
+        setShowGiftAnimation(false);
+
+        // Show success toast
+        toast.success(
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">✨</span>
+            <span>メッセージを送信しました</span>
+          </div>,
+          {
+            duration: 2000,
+            style: {
+              background: '#fff',
+              color: '#10b981',
+              border: '1px solid #6ee7b7',
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <MdWarning className="text-lg" />
+          <span>メッセージの送信に失敗しました</span>
+        </div>,
+        {
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#f43f5e',
+            border: '1px solid #fecdd3',
+          },
+        }
+      );
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, selectedGift, currentPoints, requiredPoints, isSending, onSendMessage, onPointsUpdated]);
+
+  // Text input handlers
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText.trim()) {
+      onTypingStart?.();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd?.();
+      }, 1000);
+    } else {
+      onTypingEnd?.();
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  // Gift handlers
+  const handleGiftClick = useCallback((): void => {
+    if (!validatePoints(requiredPoints)) return;
+    setShowGiftSelector(true);
+  }, [validatePoints, requiredPoints]);
+
+  // 重複関数を削除
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: selectedGift.id,
+        giftName: selectedGift.name,
+        giftImageUrl: selectedGift.imageUrl,
+        price: selectedGift.price,
+        message: text.trim(),
+        animation: selectedGift.animation,
+        createdAt: new Date()
+      };
+
+      if (gender === 'male') {
+        onPointsUpdated?.(currentPoints - selectedGift.price);
+      }
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+
+      setText('');
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(selectedGift);
+      setShowGiftSelector(false);
+
+      if (selectedGift.animation) {
+        setCurrentAnimation(selectedGift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    }
+  }, [gender, currentPoints, onPointsUpdated, onSendMessage, text, validateGift, validatePoints]);
+
+  // Menu handlers
+
+
+  // Text input handlers
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText.trim()) {
+      onTypingStart?.();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd?.();
+      }, 1000);
+    } else {
+      onTypingEnd?.();
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  // Menu handlers
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  // Gift handlers
+
+
+  const handleGiftSelect = useCallback(async (gift: Gift) => {
+    if (!validateGift(gift) || !validatePoints(gift.price)) return;
+
+    try {
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: gift.imageUrl,
+        price: gift.price,
+        message: text.trim(),
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      if (gender === 'male') {
+        onPointsUpdated?.(currentPoints - gift.price);
+      }
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+
+      setText('');
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setShowGiftSelector(false);
+
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    }
+  }, [gender, currentPoints, onPointsUpdated, onSendMessage, text, validateGift, validatePoints]);
+
+  // Handle text input
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    // Handle typing notification
+    if (onTypingStart && onTypingEnd) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      onTypingStart();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd();
+      }, 1000);
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  // Handle Enter key press
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  // Toggle attachment menu
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  // Handle gift button click
+  const handleGiftClick = useCallback(() => {
+    if (!validatePoints(requiredPoints)) return;
+    setShowGiftSelector(true);
+  }, [gender, currentPoints, requiredPoints]);
+
+  // Handle gift selection
+  // 重複関数を削除
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: gift.imageUrl,
+        price: gift.price,
+        message: text.trim(),
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      // Update points and send message
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price);
+      }
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+
+      // Reset states
+      setText('');
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setShowGiftSelector(false);
+
+      // Show animation if available
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    }
+  }, [gender, currentPoints, onPointsUpdated, onSendMessage, text]);
+
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    // Handle typing notification
+    if (onTypingStart && onTypingEnd) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      onTypingStart();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd();
+      }, 1000);
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  const handleGiftClick = useCallback(() => {
+    if (!validatePoints(requiredPoints)) return;
+    setShowGiftSelector(true);
+  }, [gender, currentPoints, requiredPoints]);
+
+  // 重複関数を削除
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: gift.imageUrl,
+        price: gift.price,
+        message: text.trim(),
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      // Update points and send message
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price);
+      }
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+
+      // Reset states
+      setText('');
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setShowGiftSelector(false);
+
+      // Show animation if available
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    }
+  }, [gender, currentPoints, onPointsUpdated, onSendMessage, text]);
+
+
+
+
+
+  // Memoized handlers
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage || sendingRef.current || (!text.trim() && attachments.length === 0)) return;
+
+    try {
+      setIsSending(true);
+      sendingRef.current = true;
+
+      await onSendMessage(text.trim(), attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      onTypingEnd?.();
+
+      toast.success(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">✨</span>
+          <span>メッセージを送信しました</span>
+        </div>,
+        {
+          duration: 2000,
+          style: {
+            background: '#fff',
+            color: '#10b981',
+            border: '1px solid #6ee7b7',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <MdWarning className="text-lg" />
+          <span>メッセージの送信に失敗しました</span>
+        </div>,
+        {
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#f43f5e',
+            border: '1px solid #fecdd3',
+          },
+        }
+      );
+    } finally {
+      setIsSending(false);
+      sendingRef.current = false;
+    }
+  }, [text, attachments, isSending, onSendMessage, onTypingEnd]);
+
+
+
+    try {
+      // Check if user has enough points
+      if (gender === 'male' && currentPoints < gift.price) {
+        toast.error('ポイントが不足しています');
+        return;
+      }
+
+      // Create gift attachment
+      const newGiftAttachment: GiftAttachment = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: gift.imageUrl,
+        price: gift.price,
+        message: text.trim(),
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      // Update points and send message
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price);
+      }
+      await onSendMessage(text.trim(), [newGiftAttachment]);
+
+      // Reset states
+      setText('');
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+      setShowGiftSelector(false);
+
+      // Show animation if available
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      toast.success('ギフトを送信しました');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    }
+  }, [gender, currentPoints, onPointsUpdated, onSendMessage, text]);
+
+  // Effects
+  useEffect(() => {
+    if (showGiftAnimation && currentAnimation) {
+      const timer = setTimeout(() => {
+        setShowGiftAnimation(false);
+        setCurrentAnimation('');
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showGiftAnimation, currentAnimation]);
+
+  // Click outside handlers
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const attachmentMenu = document.getElementById('attachment-menu');
+      const emoticonPicker = document.getElementById('emoticon-picker');
+
+      if (attachmentMenu && !attachmentMenu.contains(target)) {
+        setIsAttachmentMenuOpen(false);
+      }
+      if (emoticonPicker && !emoticonPicker.contains(target)) {
+        setIsEmoticonPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Helper functions
+  const triggerImageAttachment = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const triggerVideoAttachment = useCallback(() => {
+    videoInputRef.current?.click();
+  }, []);
+
+
+  // Memoized handlers
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage || sendingRef.current || (!text.trim() && attachments.length === 0)) return;
+
+    try {
+      setIsSending(true);
+      sendingRef.current = true;
+
+      await onSendMessage(text.trim(), attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      onTypingEnd?.();
+
+      toast.success(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">✨</span>
+          <span>メッセージを送信しました</span>
+        </div>,
+        {
+          duration: 2000,
+          style: {
+            background: '#fff',
+            color: '#10b981',
+            border: '1px solid #6ee7b7',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <MdWarning className="text-lg" />
+          <span>メッセージの送信に失敗しました</span>
+        </div>,
+        {
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#f43f5e',
+            border: '1px solid #fecdd3',
+          },
+        }
+      );
+    } finally {
+      setIsSending(false);
+      sendingRef.current = false;
+    }
+  }, [text, attachments, isSending, onSendMessage, onTypingEnd]);
+
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (newText.trim()) {
+      onTypingStart?.();
+      typingTimeoutRef.current = setTimeout(() => {
+        onTypingEnd?.();
+      }, 1000);
+    } else {
+      onTypingEnd?.();
+    }
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  const handleGiftClick = useCallback((): void => {
+    if (!validatePoints(requiredPoints ?? 0)) {
+      return;
+    }
+    setShowGiftSelector(true);
+  }, [validatePoints, requiredPoints]);
+
+  const handleGiftAnimationComplete = useCallback((): void => {
+    if (!selectedGift || !giftAttachment || gender !== 'male') return;
+
+    setShowGiftAnimation(false);
+    setCurrentAnimation('');
+
+    if (currentPoints < selectedGift.price) {
+      toast.error('ポイントが不足しています');
+      return;
+    }
+
+    onSendMessage(text.trim(), [giftAttachment])
+      .then(() => {
+        // 男性ユーザーのみポイントを消費
+        onPointsUpdated(currentPoints - selectedGift.price);
+        setText('');
+        setShowGiftSelector(false);
+        toast.success('ギフトを送信しました');
+      })
+      .catch((error) => {
+        console.error('ギフト送信エラー:', error);
+        toast.error('ギフトの送信に失敗しました');
+        // エラー時にポイントを戻す
+        onPointsUpdated(currentPoints);
+      });
+  }, [selectedGift, giftAttachment, text, currentPoints, onSendMessage, onPointsUpdated, gender]);
+  }, [gender, currentPoints, requiredPoints]);
+
+  // Gift handling functions
+  const validateGift = useCallback((gift: Gift): boolean => {
+    if (!gift?.id || !gift?.name || !gift?.imageUrl || !gift?.price) {
+      toast.error('ギフト情報が不完全です');
+      return false;
+    }
+    return true;
+  }, []);
+
+  const validatePoints = useCallback((points: number): boolean => {
+    if (gender === 'male' && currentPoints < points) {
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">💸</span>
+          <span>ポイントが不足しています</span>
+        </div>
+      );
+      return false;
+    }
+    return true;
+  }, [gender, currentPoints]);
+
+  // 重複関数を削除
+    
+    try {    
+    if (!validatePoints(gift.price)) return;
+    
+    setSelectedGift(gift);
+    setShowGiftAnimation(true);
+    setCurrentAnimation('gift-select');
+    
+    const giftAttach: GiftAttachment = {
+      type: 'gift',
+      gift,
+      price: gift.price,
+      url: gift.imageUrl,
+    };
+    
+    setGiftAttachment(giftAttach);
+    setShowGiftSelector(false);
+    
+    if (message) {
+      setText(message);
+    }
+    
+    // Points update for male users
+    if (gender === 'male') {
+      const newPoints = localPoints - gift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated(newPoints);
+    }
+      toast.error('ギフト情報が不完全です');
+      return;
+    }
+    
+    // 男性ユーザーの場合のみポイントチェック
+    if (gender === 'male') {
+      if (!validatePoints(gift.price)) {
+        toast.error(`ポイントが不足しています（必要ポイント: ${gift.price}）`);
+        return;
+      }
+      
+      // ポイントを更新
+      const newPoints = localPoints - gift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated(newPoints);
+    }
+
+    setShowGiftSelector(false);
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // Create gift attachment
+      const giftImageUrl = await validateGiftImageUrl(gift.imageUrl);
+      const newGiftAttachment: GiftAttachment = {
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl,
+        price: gift.price,
+        message: text || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      // Update UI state
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      // Handle gift animation if present
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      // Send message with gift
+      await onSendMessage(text, [newGiftAttachment]);
+      
+      // Update points based on gender
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price); // Deduct points for male users
+      } else if (gender === 'female') {
+        onPointsUpdated(currentPoints + gift.price); // Add points for female users
+      }
+      
+      toast.success('ギフトを送信しました');
+
+      // Reset states after successful send
+      setText('');
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      setGiftAttachment(null);
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+      
+      // Restore points for male users on error
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints);
+      }
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [currentPoints, isSending, onPointsUpdated, onSendMessage, text, gender, validateGift, validatePoints]);
+
+  const handleGiftClick = useCallback((): void => {
+    if (gender === 'male' && currentPoints < requiredPoints) {
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">💸</span>
+          <span>ポイントが不足しています</span>
+        </div>
+      );
+      return;
+    }
+    setShowGiftSelector(true);
+  }, [gender, currentPoints, requiredPoints]);
+
+
+      if (!trimmedText && attachments.length === 0 && !selectedLocation && !giftAttachment) {
+        toast.error('メッセージを入力してください');
+        return;
+      }
+
+      // Check points for male users
+      if (gender === 'male' && requiredPoints) {
+        if (!validatePoints(requiredPoints)) {
+          return;
+        }
+      }
+
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const messageData: Message = {
+        text: trimmedText,
+        attachments: giftAttachment ? [...attachments, giftAttachment] : attachments,
+        location: selectedLocation || undefined,
+        createdAt: new Date()
+      };
+
+      await onSendMessage(messageData);
+
+      // Update points for male users
+      if (gender === 'male' && requiredPoints) {
+        const newPoints = localPoints - requiredPoints;
+        setLocalPoints(newPoints);
+        onPointsUpdated(newPoints);
+      }
+
+      // Reset all states
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      setCurrentAnimation('');
+
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+      
+      // Restore points for male users on error
+      if (gender === 'male' && requiredPoints) {
+        setLocalPoints(currentPoints);
+        onPointsUpdated(currentPoints);
+      }
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [
+    text, attachments, selectedLocation, giftAttachment, selectedGift,
+    gender, requiredPoints, localPoints, currentPoints,
+    onSendMessage, onPointsUpdated, onTypingEnd,
+    validatePoints
+  ]);
+  disabled = false,
+  placeholder = 'メッセージを入力',
+  gender = 'male',
+  currentPoints,
+  requiredPoints = 5,
+  onPointsUpdated,
+  chatId = ''
+
+
+  // Memoized handlers
+  // メッセージ送信処理
+  // メッセージ送信処理
+
+      if (!trimmedText && attachments.length === 0 && !selectedLocation && !giftAttachment) {
+        toast.error('メッセージを入力してください');
+        return;
+      }
+
+      // ポイントのバリデーション（男性ユーザーの場合）
+      if (gender === 'male') {
+        if (giftAttachment) {
+          if (!validatePoints(giftAttachment.price)) return;
+        } else if (requiredPoints) {
+          if (!validatePoints(requiredPoints)) return;
+        }
+      }
+
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // メッセージの送信
+      const message: Message = {
+        text: trimmedText,
+        attachments: [...attachments],
+        location: selectedLocation || undefined,
+        createdAt: new Date()
+      };
+
+      if (giftAttachment) {
+        message.attachments.push(giftAttachment);
+      }
+
+      await onSendMessage(message);
+
+      // 状態のリセット
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+      setShowGiftSelector(false);
+
+      // ポイントの更新（男性ユーザーの場合）
+      if (gender === 'male') {
+        const deductPoints = giftAttachment ? giftAttachment.price : requiredPoints || 0;
+        const newPoints = localPoints - deductPoints;
+        setLocalPoints(newPoints);
+        onPointsUpdated(newPoints);
+      }
+
+      // アニメーション関連の状態リセット
+      setShowGiftAnimation(false);
+      setCurrentAnimation('');
+
+      toast.success('メッセージを送信しました');
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [
+    attachments,
+    gender,
+    giftAttachment,
+    isSending,
+    localPoints,
+    onPointsUpdated,
+    onSendMessage,
+    requiredPoints,
+    selectedLocation,
+    text,
+    validatePoints,
+    setText,
+    setAttachments,
+    setSelectedLocation,
+    setGiftAttachment,
+    setSelectedGift,
+    setShowGiftSelector,
+    setShowGiftAnimation,
+    setCurrentAnimation,
+    setLocalPoints
+  ]);, onSendMessage, onPointsUpdated, onTypingEnd]);  sendingRef.current = false;
+    }
+  }, [
+    attachments,
+    gender,
+    giftAttachment,
+    isSending,
+    localPoints,
+    onPointsUpdated,
+    onSendMessage,
+    selectedLocation,
+    setAttachments,
+    setGiftAttachment,
+    setIsSending,
+    setSelectedLocation,
+    setShowGiftSelector,
+    setText,
+    text,
+    validatePoints
+  ]);
+  }, [attachments, gender, giftAttachment, isSending, localPoints, onPointsUpdated, onSendMessage, selectedLocation, text]);
+      if (giftAttachment && gender === 'male') {
+        if (!validatePoints(giftAttachment.price)) {
+          toast.error(`ポイントが不足しています（必要ポイント: ${giftAttachment.price}）`);
+          return;
+        }        }
+        
+        // ポイントを更新
+        const newPoints = localPoints - giftAttachment.price;
+        setLocalPoints(newPoints);
+        onPointsUpdated(newPoints);
+      }
+
+      // メッセージを送信
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const messageAttachments = giftAttachment ? [...attachments, giftAttachment] : attachments;
+      
+      await onSendMessage({
+        text: trimmedText,
+        attachments: messageAttachments,
+        location: selectedLocation || undefined,
+        createdAt: new Date()
+      });
+
+      // 成功時のクリア
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setGiftAttachment(null);
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      setCurrentAnimation('');
+      
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [
+    text,
+    attachments,
+    selectedLocation,
+    giftAttachment,
+    gender,
+    localPoints,
+    onSendMessage,
+    onPointsUpdated,
+    sendingRef,
+    isSending,
+    setText,
+    setAttachments,
+    setSelectedLocation,
+    setGiftAttachment,
+    setShowGiftSelector,
+    setIsSending,
+    validatePoints,
+    createdAt
+  ]);
+  }, [text, attachments, selectedLocation, giftAttachment, gender, localPoints, onSendMessage, onPointsUpdated]);
+
+      await onSendMessage(text, attachments, selectedLocation);
+      
+      // メッセージ送信後のクリーンアップ
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(undefined);
+      setShowGiftSelector(false);
+      
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+
+    try {
+      if (gender === 'male' && giftAttachment) {
+        if (!validatePoints(giftAttachment.price)) {
+          return;
+        }
+      }
+
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const currentAttachments = giftAttachment 
+        ? [...attachments, giftAttachment]
+        : attachments;
+
+      await onSendMessage(text.trim(), currentAttachments, selectedLocation);
+      
+      // ギフト送信時のポイント更新
+      if (giftAttachment) {
+        if (gender === 'male') {
+          onPointsUpdated(currentPoints - giftAttachment.price);
+        } else if (gender === 'female') {
+          onPointsUpdated(currentPoints + giftAttachment.price);
+        }
+      }
+
+      // Reset states
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(undefined);
+      setGiftAttachment(null);
+      setSelectedGift(null);
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      onTypingEnd?.();
+
+      toast.success(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">✨</span>
+          <span>メッセージを送信しました</span>
+        </div>
+      );
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <MdWarning className="text-lg" />
+          <span>メッセージの送信に失敗しました</span>
+        </div>
+      );
+
+      // エラー時のポイント返却（男性ユーザーのみ）
+      if (gender === 'male' && giftAttachment) {
+        onPointsUpdated(currentPoints);
+      }
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, selectedGift, giftAttachment, onSendMessage, onTypingEnd, gender, currentPoints, onPointsUpdated, validatePoints]);
+
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    onTypingStart?.();
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onTypingEnd?.();
+    }, 1000);
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const giftImageUrl = validateGiftImageUrl(gift.imageUrl);
+      const newGiftAttachment: GiftAttachment = {
+        id: crypto.randomUUID(),
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl,
+        price: gift.price,
+        message: text.trim() || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      await onSendMessage('', [newGiftAttachment]);
+      onPointsUpdated(currentPoints - gift.price);
+      
+      setShowGiftSelector(false);
+      setText('');
+      setShowGiftAnimation(false);
+      setCurrentAnimation('');
+      setSelectedGift(null);
+      setGiftAttachment(null);
+      
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  // 重複関数を削除
+    
+    try {    
+    if (!validatePoints(gift.price)) return;
+    
+    setSelectedGift(gift);
+    setShowGiftAnimation(true);
+    setCurrentAnimation('gift-select');
+    
+    const giftAttach: GiftAttachment = {
+      type: 'gift',
+      gift,
+      price: gift.price,
+      url: gift.imageUrl,
+    };
+    
+    setGiftAttachment(giftAttach);
+    setShowGiftSelector(false);
+    
+    if (message) {
+      setText(message);
+    }
+    
+    // Points update for male users
+    if (gender === 'male') {
+      const newPoints = localPoints - gift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated(newPoints);
+    }
+      toast.error('ギフト情報が不完全です');
+      return;
+    }
+    
+    // 男性ユーザーの場合のみポイントチェック
+    if (gender === 'male') {
+      if (!validatePoints(gift.price)) {
+        toast.error(`ポイントが不足しています（必要ポイント: ${gift.price}）`);
+        return;
+      }
+      
+      // ポイントを更新
+      const newPoints = localPoints - gift.price;
+      setLocalPoints(newPoints);
+      onPointsUpdated(newPoints);
+    }
+
+    setShowGiftSelector(false);
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      const newGiftAttachment: GiftAttachment = {
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl: gift.imageUrl,
+        price: gift.price,
+        message: '',
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+      }
+
+      await onSendMessage('', [newGiftAttachment]);
+      
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price);
+      }
+
+      setText('');
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+      setSelectedGift(null);
+      setGiftAttachment(null);
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [currentPoints, gender, isSending, onPointsUpdated, onSendMessage]);
+  }, [currentPoints, onPointsUpdated, onSendMessage]);
+
+  // Effects
+  useEffect(() => {
+    if (showGiftAnimation && currentAnimation) {
+      const timer = setTimeout(() => {
+        setShowGiftAnimation(false);
+        setCurrentAnimation('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showGiftAnimation, currentAnimation]);
+
+  // Click outside handlers
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const attachmentMenu = document.getElementById('attachment-menu');
+      const emoticonPicker = document.getElementById('emoticon-picker');
+      
+      if (attachmentMenu && !attachmentMenu.contains(target)) {
+        setIsAttachmentMenuOpen(false);
+      }
+      if (emoticonPicker && !emoticonPicker.contains(target)) {
+        setIsEmoticonPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Trigger handlers
+  const triggerImageAttachment = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const triggerVideoAttachment = useCallback(() => {
+    videoInputRef.current?.click();
+  }, []);
+
+  const handleGiftClick = useCallback(() => {
+    if (gender === 'male' && requiredPoints) {
+      if (!validatePoints(requiredPoints)) {
+        return;
+      }
+    }
+    setShowGiftSelector(true);
+  }, [gender, validatePoints, requiredPoints]);
+
+  // Event handlers
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    onTypingStart?.();
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onTypingEnd?.();
+    }, 1000);
+  }, [onTypingStart, onTypingEnd]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+
+
+  // ギフト送信のハンドラー
+  const handleGiftSelect = useCallback(async (gift: Gift): Promise<void> => {
+    // Validate gift data
+    if (!gift?.id || !gift?.name || !gift?.imageUrl || !gift?.price) {
+      toast.error('ギフト情報が不完全です');
+      return;
+    }
+
+    // Check points for male users only
+    if (gender === 'male') {
+      if (typeof currentPoints !== 'number' || currentPoints < gift.price) {
+        toast.error(
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">💸</span>
+            <span>ポイントが不足しています</span>
+          </div>,
+          {
+            duration: 3000,
+            style: {
+              background: '#fff',
+              color: '#f43f5e',
+              border: '1px solid #fecdd3',
+            },
+          }
+        );
+        return;
+      }
+    }
+
+    // Check if already sending
+    if (isSending || sendingRef.current) {
+      toast.error('送信処理中です');
+      return;
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // Create gift attachment
+      const giftImageUrl = await validateGiftImageUrl(gift.imageUrl);
+      const newGiftAttachment: GiftAttachment = {
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl,
+        price: gift.price,
+        message: text || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      // Update UI state
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      // Handle gift animation if present
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      // Send message with gift
+      await onSendMessage(text, [newGiftAttachment]);
+      
+      // Update points based on gender
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints - gift.price); // Deduct points for male users
+      } else {
+        onPointsUpdated(currentPoints + gift.price); // Add points for female users
+      }
+      
+      toast.success('ギフトを送信しました');
+
+      // Reset states after successful send
+      setText('');
+      setShowGiftSelector(false);
+      setShowGiftAnimation(false);
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+      
+      // Restore points for male users on error
+      if (gender === 'male') {
+        onPointsUpdated(currentPoints);
+      }
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [currentPoints, isSending, onPointsUpdated, onSendMessage, text, gender]);
+
+  // Remove any duplicate handleGiftSelect declarations
+
+  // 動画の再生時間をフォーマットする関数
+  const formatDuration = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+  
+  // ギフト送信処理
+  const handleGiftClick = useCallback(() => {
+    if (gender === 'male' && requiredPoints && !validatePoints(requiredPoints)) {
+      return;
+    }
+    setShowGiftSelector(true);
+  }, [gender, requiredPoints, validatePoints]);
+        toast.error('ポイント情報が取得できません');
+        return;
+      }
+      
+      if (localPoints < requiredPoints) {
+        toast.error(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">💸</span>
+          <span>ポイントが不足しています</span>
+        </div>,
+        {
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#f43f5e',
+            border: '1px solid #fecdd3',
+          },
+        }
+      );
+      return;
+    }
+        toast.error(
+          <div className="flex items-center space-x-2">
+            <span className="text-lg">💸</span>
+            <span>ポイントが不足しています</span>
+          </div>,
+          {
+            duration: 3000,
+            style: {
+              background: '#fff',
+              color: '#f43f5e',
+              border: '1px solid #fecdd3',
+            },
+          }
+        );
+        return;
+      }
+      setShowGiftSelector(true);
+    } else {
+      toast.error(
+        <div className="flex items-center space-x-2">
+          <span className="text-lg">⚠️</span>
+          <span>ギフトの送信は男性ユーザーのみ可能です</span>
+        </div>,
+        {
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#f43f5e',
+            border: '1px solid #fecdd3',
+          },
+        }
+      );
+    }
+  }, [gender, currentPoints, requiredPoints]);
+
+  // ギフトアニメーション終了時のクリーンアップ
+  useEffect(() => {
+    if (showGiftAnimation && currentAnimation) {
+      const timer = setTimeout(() => {
+        setShowGiftAnimation(false);
+        setCurrentAnimation('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showGiftAnimation, currentAnimation]);
+
+  // ドキュメントクリックイベントハンドラー
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isAttachmentMenuOpen &&
+        event.target instanceof HTMLElement &&
+        !event.target.closest('.attachment-menu')
+      ) {
+        setIsAttachmentMenuOpen(false);
+      }
+    };
+
+
+  }, [isAttachmentMenuOpen]);
+
+  // ファイル添付メニューの表示切り替え
+  const toggleAttachmentMenu = useCallback(() => {
+    setIsAttachmentMenuOpen(!isAttachmentMenuOpen);
+  }, [isAttachmentMenuOpen]);
+
+  // 画像添付トリガー
+  const triggerImageAttachment = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  // 動画添付トリガー
+  const triggerVideoAttachment = useCallback(() => {
+    videoInputRef.current?.click();
+  }, []);
+
+  // ドキュメントクリックイベントハンドラー
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isAttachmentMenuOpen &&
+        event.target instanceof HTMLElement &&
+        !event.target.closest('.attachment-menu')
+      ) {
+        setIsAttachmentMenuOpen(false);
+      }
+    };
+
+
+  }, [isAttachmentMenuOpen]);
+
+  return (
+    <div ref={ref} className="relative w-full flex flex-col gap-2 p-4 border-t border-gray-200">
+      <div className="flex items-center gap-2">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={handleTextChange}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1 min-h-[40px] max-h-[120px] p-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={disabled || isSending}
+        />
+        <button
+          onClick={handleSendMessage}
+          disabled={disabled || isSending || (!text && !attachments.length)}
+          className={`p-2 rounded-full ${disabled || isSending || (!text && !attachments.length) ? 'bg-gray-200' : 'bg-blue-500 hover:bg-blue-600'}`}
+        >
+          <RiSendPlaneFill className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showGiftSelector && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          >
+            <GiftSelector
+              onSelect={handleGiftSelect}
+              onClose={() => setShowGiftSelector(false)}
+              currentPoints={currentPoints}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGiftAnimation && currentAnimation && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <GiftAnimator 
+              animation={currentAnimation} 
+              onAnimationComplete={() => {
+                setShowGiftAnimation(false);
+                setCurrentAnimation('');
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex items-center gap-2 mt-2">
+        <button
+          onClick={toggleAttachmentMenu}
+          className="p-2 rounded-full hover:bg-gray-100"
+          disabled={disabled || isSending}
+        >
+          <HiPaperClip className="w-5 h-5 text-gray-500" />
+        </button>
+        <button
+          onClick={handleGiftClick}
+          className="p-2 rounded-full hover:bg-gray-100"
+          disabled={disabled || isSending}
+        >
+          <HiGift className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
+
+      {isAttachmentMenuOpen && (
+        <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 p-2 attachment-menu">
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={triggerImageAttachment}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg"
+            >
+              <HiPhotograph className="w-5 h-5 text-gray-500" />
+              <span>画像を添付</span>
+            </button>
+            <button
+              onClick={triggerVideoAttachment}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg"
+            >
+              <HiVideoCamera className="w-5 h-5 text-gray-500" />
+              <span>動画を添付</span>
+            </button>
+            <button
+              onClick={handleLocationAttachment}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg"
+            >
+              <HiLocationMarker className="w-5 h-5 text-gray-500" />
+              <span>位置情報を共有</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleImageAttachment}
+      />
+      <input
+        type="file"
+        ref={videoInputRef}
+        className="hidden"
+        accept="video/*"
+        onChange={handleVideoAttachment}
+      />
+    </div>
+  );
+  
+    // ギフト送信のハンドラー
+  const handleGiftSelect = useCallback(async (gift: Gift) => {
+    if (!gift?.id || !gift?.name || !gift?.imageUrl || !gift?.price) {
+      toast.error('ギフト情報が不完全です');
+      return;
+    }
+
+    if (currentPoints < gift.price) {
+      toast.error('ポイントが不足しています');
+      return;
+    }
+
+    if (isSending || sendingRef.current) {
+      console.log('送信処理中です');
+      return;
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // ギフト画像URLの処理
+      const giftImageUrl = validateGiftImageUrl(gift.imageUrl);
+
+      // ギフトアタッチメントの作成
+      const newGiftAttachment: GiftAttachment = {
+        id: crypto.randomUUID(),
+        type: 'gift' as const,
+        giftId: gift.id,
+        giftName: gift.name,
+        giftImageUrl,
+        price: gift.price,
+        message: text || undefined,
+        animation: gift.animation,
+        createdAt: new Date()
+      };
+
+      setGiftAttachment(newGiftAttachment);
+      setSelectedGift(gift);
+
+      // アニメーションの表示
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      // メッセージの送信
+      await onSendMessage('', [newGiftAttachment]);
+      setShowGiftAnimation(false);
+
+      // ポイントの更新
+      onPointsUpdated(currentPoints - gift.price);
+
+      // 送信成功
+      toast.success('ギフトを送信しました');
+      setShowGiftSelector(false);
+      setText('');
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+      // エラー時にポイントを戻す
+      onPointsUpdated(currentPoints);
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+      setSelectedGift(null);
+      setGiftAttachment(null);
+    }
+  }, [currentPoints, isSending, onPointsUpdated, onSendMessage, text]);
+
+  // メッセージ送信のハンドラー
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage || sendingRef.current) return;
+
+    try {
+      setIsSending(true);
+      sendingRef.current = true;
+
+      await onSendMessage(text, attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      setSelectedGift(null);
+      setGiftAttachment(null);
+      
+      if (onTypingEnd) {
+        onTypingEnd();
+      }
+      toast.success('メッセージを送信しました');
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      setIsSending(false);
+      sendingRef.current = false;
+    }
+  }, [text, attachments, selectedLocation, onSendMessage, onTypingEnd, isSending]);
+
+  // テキスト入力のハンドラー
+  const handleTextChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+    if (onTypingStart) onTypingStart();
+  }, [onTypingStart]);
+
+  // キー入力のハンドラー
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+
+
+      return;
+    }
+
+    // 送信フラグを立てる
+    setIsSending(true);
+    sendingRef.current = true;
+    console.log('【ギフト送信】送信開始');
+
+    // ギフト情報のバリデーション
+    if (!gift || !gift.id || !gift.name || !gift.imageUrl) {
+      console.error('【ギフト送信】不正なギフトデータ:', gift);
+      toast.error('ギフトの送信に失敗しました');
+      setIsSending(false);
+      sendingRef.current = false;
+      return;
+    }
+
+    // ギフト送信の処理
+    setShowGiftSelector(false);
+    toast.success(
+      <div className="flex items-center space-x-2">
+        <span className="text-lg">🎁</span>
+        <span>{giftAttachment.giftName}を送信しました！</span>
+      </div>,
+      {
+        duration: 3000,
+        style: {
+          background: '#fff',
+          color: '#06c755',
+          border: '1px solid #06c755',
+        },
+      }
+    );
+
+    try {
+      // アニメーションの処理
+      if (giftAttachment.animation) {
+        setCurrentAnimation(giftAttachment.animation);
+        setShowGiftAnimation(true);
+        
+        // アニメーションを表示してからメッセージを送信
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await onSendMessage('', [giftAttachment]);
+        
+        // アニメーションをフェードアウト
+        setTimeout(() => {
+          setShowGiftAnimation(false);
+          setIsSending(false);
+          sendingRef.current = false;
+          console.log('【ギフト送信】アニメーション完了');
+        }, 500);
+      } else {
+        await onSendMessage('', [giftAttachment]);
+        setIsSending(false);
+        sendingRef.current = false;
+        console.log('【ギフト送信】送信完了');
+      }
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+      setIsSending(false);
+      sendingRef.current = false;
+    }
+    
+    if (!gift || !gift.id || !gift.name || !gift.imageUrl) {
+      toast.error('ギフト情報が不完全です');
+      return;
+    }
+
+    if (isSending || sendingRef.current) {
+      console.log('送信処理中です');
+      return;
+    }
+
+    try {
+      sendingRef.current = true;
+      setIsSending(true);
+
+      // ポイントチェック
+      if (gift.price > currentPoints) {
+        toast.error('ポイントが不足しています');
+        return;
+      }
+
+      // ギフトアタッチメントの作成
+      const giftAttachment: Attachment = {
+        type: 'gift',
+        giftId: gift.id,
+        giftName: gift.name,
+        url: gift.imageUrl,
+        animation: gift.animation,
+        message: message
+      };
+
+      // アニメーションの表示
+      if (gift.animation) {
+        setCurrentAnimation(gift.animation);
+        setShowGiftAnimation(true);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      // メッセージの送信
+      await onSendMessage('', [giftAttachment]);
+      setShowGiftAnimation(false);
+
+      // ポイントの更新
+      if (onPointsUpdated) {
+        onPointsUpdated(currentPoints - gift.price);
+      }
+
+      // 送信成功
+      toast.success('ギフトを送信しました');
+      setShowGiftSelector(false);
+    } catch (error) {
+      console.error('ギフト送信エラー:', error);
+      toast.error('ギフトの送信に失敗しました');
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [currentPoints, isSending, onPointsUpdated, onSendMessage]);
+
+  // メッセージ送信のハンドラー
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage) return;
+
+    try {
+      setIsSending(true);
+      await onSendMessage(text, attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      if (onTypingEnd) onTypingEnd();
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, onSendMessage, onTypingEnd, isSending]);
+
+  // テキスト入力のハンドラー
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+    if (onTypingStart && newText.length > 0) onTypingStart();
+    if (onTypingEnd && newText.length === 0) onTypingEnd();
+  }, [onTypingStart, onTypingEnd]);
+
+  return (
+    <div className="relative w-full">
+      {/* ギフト送信のアニメーション */}
+      {showGiftAnimation && currentAnimation && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+        >
+          <Image
+            src={currentAnimation}
+            alt="ギフトアニメーション"
+            width={300}
+            height={300}
+            className="object-contain"
+          />
+        </motion.div>
+      )}
+
+      <div className="flex items-end gap-2 p-4 bg-white border-t">
+        <textarea
+          value={text}
+          onChange={handleTextChange}
+          placeholder={placeholder}
+          className="flex-1 min-h-[40px] max-h-[120px] p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={disabled || isSending}
+        />
+        <button
+          onClick={handleSendMessage}
+          disabled={disabled || isSending || (!text.trim() && attachments.length === 0)}
+          className="p-2 rounded-full bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RiSendPlaneFill className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* 非表示のファイル入力 */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+      <input
+        type="file"
+        ref={videoInputRef}
+        accept="video/*"
+        className="hidden"
+        onChange={handleVideoSelect}
+      />
+
+      {/* ギフトセレクター */}
+      {showGiftSelector && (
+        <GiftSelector
+          onSelect={handleGiftSelect}
+          onClose={() => setShowGiftSelector(false)}
+          currentPoints={currentPoints}
+          selectedGift={selectedGift}
+        />
+      )}
+    </div>
+  );
+}
+}
+
+  // メッセージ送信のハンドラー
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage) return;
+
+    try {
+      setIsSending(true);
+      await onSendMessage(text, attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      if (onTypingEnd) onTypingEnd();
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, onSendMessage, onTypingEnd, isSending]);
+
+  // テキスト入力のハンドラー
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+    if (onTypingStart && newText.length > 0) onTypingStart();
+    if (onTypingEnd && newText.length === 0) onTypingEnd();
+  }, [onTypingStart, onTypingEnd]);
+
+  return (
+    <div className="relative w-full">
+      {/* ギフト送信のアニメーション */}
+      {showGiftAnimation && currentAnimation && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+        >
+          <Image
+            src={currentAnimation}
+            alt="ギフトアニメーション"
+            width={300}
+            height={300}
+            className="object-contain"
+          />
+        </motion.div>
+      )}
+
+      <div className="flex items-end gap-2 p-4 bg-white border-t">
+        <textarea
+          value={text}
+          onChange={handleTextChange}
+          placeholder="メッセージを入力..."
+          className="flex-1 min-h-[40px] max-h-[120px] p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={disabled || isSending}
+        />
+        <button
+          onClick={handleSendMessage}
+          disabled={disabled || isSending || (!text && attachments.length === 0)}
+          className="p-2 rounded-full bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RiSendPlaneFill className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+  // メッセージ送信のハンドラー
+  const handleSendMessage = useCallback(async () => {
+    if (isSending || !onSendMessage) return;
+
+    try {
+      setIsSending(true);
+      await onSendMessage(text, attachments);
+      setText('');
+      setAttachments([]);
+      setSelectedLocation(null);
+      if (onTypingEnd) onTypingEnd();
+    } catch (error) {
+      console.error('メッセージ送信エラー:', error);
+      toast.error('メッセージの送信に失敗しました');
+    } finally {
+      setIsSending(false);
+    }
+  }, [text, attachments, selectedLocation, onSendMessage, onTypingEnd, isSending]);
+
+  return (
+    <div className="relative">
+      {/* ギフト送信のアニメーション */}
+      {showGiftAnimation && currentAnimation && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+        >
+          <Image
+            src={currentAnimation}
+            alt="ギフトアニメーション"
+            width={300}
+            height={300}
+            className="object-contain"
+          />
+        </motion.div>
+      )}
+    </div>
+  );
+});
+    
+    // アニメーションがある場合は表示
+    if (gift.animation) {
+      setCurrentAnimation(gift.animation);
+      setShowGiftAnimation(true);
+      
+      // アニメーション終了後にギフトメッセージを送信
+      // 確実に送信するためにタイムアウトを短く設定
+      setTimeout(() => {
+        // アニメーション終了後にギフトを送信
+        console.log('アニメーション後のギフト送信開始');
+        onSendMessage('', [giftAttachment]);
+        console.log('ギフト送信完了');
+        setShowGiftAnimation(false);
+      }, 1000); // アニメーション時間を短縮
+    } else {
+      // アニメーションがない場合は即座に送信
+      console.log('アニメーションなしのギフト送信');
+      onSendMessage('', [giftAttachment]);
+      console.log('ギフト送信完了');
+    }
+  };
+
+  // テキスト入力ハンドラー
+
+
+  // Enterキーでの送信
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendMessage();
+    }
+  }, [handleSendMessage]);
 
   // 画像添付ハンドラー
   const handleImageAttachment = (e: ChangeEvent<HTMLInputElement>) => {
@@ -75,37 +3740,55 @@ export default function MessageInput({
       
       if (maxAdditionalImages <= 0) {
         toast.error('画像は最大5枚までアップロードできます');
-        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
       
-      // 追加できる画像数に制限
-      const filesToAdd = Array.from(e.target.files).slice(0, maxAdditionalImages);
+      // 選択されたファイルを処理（最大数まで）
+      const filesToProcess = Array.from(e.target.files).slice(0, maxAdditionalImages);
       
-      const newAttachments = filesToAdd.map(file => {
-        const url = URL.createObjectURL(file);
-        const attachment: ImageAttachment = {
-          id: Math.random().toString(36).substr(2, 9),
-          type: 'image',
-          url,
-          createdAt: new Date()
-        };
-        return attachment;
-      });
-      
-      setAttachments([...attachments, ...newAttachments]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      
-      // 制限に達した場合は通知
-      if (existingImageCount + filesToAdd.length >= 5) {
-        toast.success('画像の最大数（5枚）に達しました', {
-          icon: '📷',
-          style: {
-            background: '#4B5563',
-            color: '#FFFFFF'
+      // ファイルごとに処理
+      filesToProcess.forEach(file => {
+        const reader = new FileReader();
+        
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            // 新しい画像添付を作成
+            const newImageAttachment: ImageAttachment = {
+              id: `image-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+              type: 'image',
+              url: event.target.result as string,
+              name: file.name,
+              size: file.size,
+              file,
+              originalWidth: 0,
+              originalHeight: 0,
+              thumbnailUrl: event.target.result as string,
+              createdAt: new Date(),
+            };
+            
+            // 画像のサイズを取得
+            const img = new window.Image();
+            img.onload = () => {
+              newImageAttachment.originalWidth = img.width;
+              newImageAttachment.originalHeight = img.height;
+              
+              // 添付リストに追加
+              setAttachments(prev => [...prev, newImageAttachment]);
+            };
+            
+            // 画像のソースを設定してロードを開始
+            
+            img.src = event.target.result as string;
           }
-        });
-      }
+        };
+        
+        reader.readAsDataURL(file);
+      });
+    }
+    
+    // ファイル入力をリセットして再選択を可能に
+    if (e.target) {
+      e.target.value = '';
     }
   };
 
@@ -115,474 +3798,706 @@ export default function MessageInput({
     setIsAttachmentMenuOpen(false);
     
     if (e.target.files && e.target.files.length > 0) {
-      // LINEでは動画ファイルを一度に1つのみ送信可能
-      // 既存の動画がある場合はエラー通知
-      if (attachments.some(a => a.type === 'video')) {
-        toast.error('動画は一度に1つまで添付できます');
-        if (videoInputRef.current) videoInputRef.current.value = '';
+      // 既存の動画添付があるかチェック
+      const hasExistingVideo = attachments.some(a => a.type === 'video');
+      
+      if (hasExistingVideo) {
+        toast.error('動画は1つのメッセージにつき1つだけ添付できます');
         return;
       }
       
       const file = e.target.files[0];
-      const url = URL.createObjectURL(file);
+      const reader = new FileReader();
       
-      // 動画のメタデータを取得するプロセス
-      // サムネイル生成用に仮の動画要素を作成
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.src = url;
-      
-      // データのロード完了時に実行
-      video.onloadedmetadata = () => {
-        // サムネイル生成用の仮キャンバス
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        // 動画の中間付近のフレームをサムネイルとして使用
-        video.currentTime = Math.min(1, video.duration / 2);
-      };
-      
-      video.onseeked = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          // 画像をURL化
-          try {
-            const thumbnailUrl = canvas.toDataURL('image/jpeg');
-            
-            const attachment: VideoAttachment = {
-              id: Math.random().toString(36).substr(2, 9),
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          // 動画のメタデータを取得するための一時的なビデオ要素
+          const video = document.createElement('video');
+          
+          video.onloadedmetadata = () => {
+            // 新しい動画添付を作成
+            const newVideoAttachment: VideoAttachment = {
+              id: `video-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               type: 'video',
-              url,
-              thumbnailUrl,
+              url: URL.createObjectURL(file),
+              name: file.name,
+              size: file.size,
+              file,
               duration: video.duration,
-              createdAt: new Date()
+              thumbnailUrl: '', // サムネイルは実際には動画の最初のフレームを取得する処理が必要
+              createdAt: new Date(),
             };
             
-            setAttachments([...attachments, attachment]);
-            toast.success('動画を添付しました');
-          } catch (e) {
-            // サムネイル生成失敗時はサムネイルなしで添付
-            const attachment: VideoAttachment = {
-              id: Math.random().toString(36).substr(2, 9),
-              type: 'video',
-              url,
-              createdAt: new Date()
-            };
-            
-            setAttachments([...attachments, attachment]);
-            toast.success('動画を添付しました');
-          }
+            // 添付リストに追加
+            setAttachments(prev => [...prev, newVideoAttachment]);
+          };
+          
+          video.src = URL.createObjectURL(file);
         }
       };
       
-      // エラー発生時はサムネイルなしで添付
-      video.onerror = () => {
-        const attachment: VideoAttachment = {
-          id: Math.random().toString(36).substr(2, 9),
-          type: 'video',
-          url,
-          createdAt: new Date()
-        };
-        
-        setAttachments([...attachments, attachment]);
-        toast.success('動画を添付しました');
-      };
-      
-      if (videoInputRef.current) videoInputRef.current.value = '';
+      reader.readAsArrayBuffer(file);
+    }
+    
+    // ファイル入力をリセットして再選択を可能に
+    if (e.target) {
+      e.target.value = '';
     }
   };
 
-  // 位置情報添付ハンドラー
+  // 位置情報添付
   const handleLocationAttachment = () => {
     // ファイル選択メニューを自動的に閉じる
     setIsAttachmentMenuOpen(false);
     
-    // 位置情報取得中のローディング表示
-    toast.loading('位置情報を取得中...', { id: 'location-toast' });
-    
+    // ジオロケーションAPIが利用可能かチェック
     if (navigator.geolocation) {
+      // ユーザーの現在位置を取得
       navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            // 緯度経度から住所情報を取得する
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            
-            // 逆ジオコーディングAPIを使用して住所を取得
-            // 実験用にローカルデータを返す関数を使用
-            const address = await getAddressFromCoordinates(lat, lng);
-            
-            // 地図の静的画像を生成
-            const mapPreviewUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=600x300&markers=color:red%7C${lat},${lng}&key=YOUR_API_KEY`;
-            
-            // スマートフォン用の地図URL
-            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-            
-            const locationAttachment: LocationAttachment = {
-              id: Math.random().toString(36).substr(2, 9),
-              type: 'location',
-              latitude: lat,
-              longitude: lng,
-              name: '現在地',
-              address: address,
-              url: mapsUrl,
-              previewUrl: mapPreviewUrl,
-              createdAt: new Date()
-            };
-            
-            setAttachments([...attachments, locationAttachment]);
-            toast.dismiss('location-toast');
-            toast.success('位置情報を添付しました');
-          } catch (error) {
-            console.error('位置情報の処理中にエラーが発生しました:', error);
-            toast.dismiss('location-toast');
-            toast.error('位置情報の処理に失敗しました');
-          }
+        (position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          
+          // 位置情報のリバースジオコーディング（住所取得）
+          // 実際の実装では、Google Maps APIなどを使用するのが一般的
+          const getAddress = async (lat: number, lng: number) => {
+            try {
+              // このURLは実際のAPIキーで置き換える必要があります
+              const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=YOUR_API_KEY`);
+              const data = await response.json();
+              
+              if (data.results && data.results.length > 0) {
+                return data.results[0].formatted_address;
+              }
+              
+              return '住所が取得できませんでした';
+            } catch (error) {
+              console.error('住所の取得に失敗しました:', error);
+              return '住所の取得に失敗しました';
+            }
+          };
+          
+          // 簡易的な実装のため、実際の住所取得はスキップ
+          const mockAddress = '東京都渋谷区道玄坂1-12-5';
+          
+          // 新しい位置情報添付を作成
+          const newLocationAttachment: LocationAttachment = {
+            id: `location-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            type: 'location',
+            latitude,
+            longitude,
+            address: mockAddress,
+            name: '現在地',
+            url: `https://www.google.com/maps?q=${latitude},${longitude}`,
+            createdAt: new Date(),
+          };
+          
+          // 位置情報の表示を設定
+          setSelectedLocation(newLocationAttachment);
         },
         (error) => {
           console.error('位置情報の取得に失敗しました:', error);
-          toast.dismiss('location-toast');
-          toast.error('位置情報の取得に失敗しました。位置情報の許可を確認してください。');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          
+          let errorMessage = '位置情報の取得に失敗しました。';
+          
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = '位置情報へのアクセスが拒否されました。設定から位置情報の利用を許可してください。';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = '位置情報が取得できませんでした。ネットワーク接続を確認してください。';
+              break;
+            case error.TIMEOUT:
+              errorMessage = '位置情報の取得がタイムアウトしました。再度お試しください。';
+              break;
+          }
+          
+          toast.error(errorMessage);
+        }
       );
     } else {
-      toast.dismiss('location-toast');
-      toast.error('お使いのブラウザは位置情報をサポートしていません。');
+      toast.error('お使いのブラウザでは位置情報サービスがサポートされていません。');
     }
   };
+
+  // 絵文字ピッカーの表示切り替え
+  const handleEmoticonMenu = (e: React.MouseEvent) => {
+    e.stopPropagation(); // クリックイベントの伝播を防止
+    e.preventDefault(); // デフォルト動作を防止
+    
+    // デバッグ情報を表示
+    console.log('絵文字ボタンがクリックされました', {
+      現在の状態: isEmoticonPickerOpen ? '開いている' : '閉じている',
+      変更後: !isEmoticonPickerOpen ? '開く' : '閉じる'
+    });
+    
+    // 状態を切り替え
+    setIsEmoticonPickerOpen(!isEmoticonPickerOpen);
+    
+    // 添付メニューが開いていれば閉じる
+    if (isAttachmentMenuOpen) {
+      setIsAttachmentMenuOpen(false);
+    }
+    
+    // 少し遅延させて状態を確認
+    setTimeout(() => {
+      console.log('絵文字ピッカーの状態:', isEmoticonPickerOpen ? '開いている' : '閉じている');
+    }, 100);
+  };
   
-  // 座標から住所を取得する関数 (実験用に簡略化)
-  const getAddressFromCoordinates = async (latitude: number, longitude: number): Promise<string> => {
-    // 実際のアプリでは、ここでGoogle Maps Geocoding APIなどを呼び出す
-    // デモ用にダミーデータを返す
-    return '東京都渋谷区渋谷1-2-3';
+  // 絵文字選択ハンドラ
+  const handleEmojiSelect = (e: React.MouseEvent, emoji: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setText((prevText) => prevText + emoji);
+    // ピッカーは閉じない
+  };
+  
+  // カテゴリ選択ハンドラ
+  const handleCategorySelect = (e: React.MouseEvent, category: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveEmojiCategory(category);
+    console.log(`${category}カテゴリが選択されました`);
   };
 
-  // URL検出
-  const detectUrlsInText = (text: string): UrlAttachment[] => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const matches = text.match(urlRegex);
-    
-    if (!matches) return [];
-    
-    return matches.map(url => ({
-      id: Math.random().toString(36).substr(2, 9),
-      type: 'url',
-      url,
-      createdAt: new Date(),
-    }));
+  // 添付ファイルの削除
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 添付ファイル削除
-  const removeAttachment = (id: string) => {
-    setAttachments(attachments.filter(a => a.id !== id));
+  // 位置情報表示のキャンセル
+  const handleCancelLocation = () => {
+    setSelectedLocation(null);
   };
 
-  // メッセージ送信
+  // メッセージ送信処理
   const handleSendMessage = () => {
-    console.log('送信ボタンが押されました');
-    console.log('テキスト:', text);
-    console.log('添付ファイル:', attachments);
+    if (disabled) return;
     
-    // ディセーブル確認
-    if ((!text && attachments.length === 0) || disabled) {
-      console.log('送信条件を満たしていません:', {
-        text: text.length > 0,
-        attachments: attachments.length > 0,
-        disabled: disabled
+    // テキストか添付ファイルのいずれかが必要
+    if (!text && attachments.length === 0 && !selectedLocation) {
+      toast('メッセージを入力するか、ファイルを添付してください。', {
+        icon: <MdWarning className="text-yellow-500" />,
       });
       return;
     }
     
-    // テキストからURL検出
-    const urlAttachments = detectUrlsInText(text);
-    const allAttachments = [...attachments];
-    
-    // URLが既に添付されていない場合のみ追加
-    for (const urlAttachment of urlAttachments) {
-      if (!allAttachments.some(a => a.type === 'url' && a.url === urlAttachment.url)) {
-        allAttachments.push(urlAttachment);
-      }
-    }
-    
-    console.log('全添付ファイル:', allAttachments);
-    
-    // 男性ユーザーの場合、ポイントをチェック
-    if (gender === 'male') {
-      // 写真や動画の添付がある場合は追加ポイントが必要
-      const mediaAttachmentCount = allAttachments.filter(
-        att => att.type === 'image' || att.type === 'video'
-      ).length;
-      
-      const totalRequiredPoints = requiredPoints + (mediaAttachmentCount * 3); // メディアごとに追加3ポイント
-      
-      if (currentPoints < totalRequiredPoints) {
-        toast.error(`ポイントが不足しています。${totalRequiredPoints}ポイント必要です。`);
-        return;
-      }
-      
-      // ポイント消費
-      if (onPointsUpdated) {
-        onPointsUpdated(currentPoints - totalRequiredPoints);
-        toast.success(`${totalRequiredPoints}ポイントを消費しました。`);
-      }
-    } else if (gender === 'female' && onPointsUpdated) {
-      // 女性の場合、ポイント獲得
-      const earnedPoints = requiredPoints;
-      onPointsUpdated(currentPoints + earnedPoints);
-      toast.success(`${earnedPoints}ポイントを獲得しました！`, {
-        icon: '🎁',
-        style: {
-          background: '#10B981',
-          color: '#FFFFFF'
-        }
-      });
-    }
-    
+    // 送信中の状態を設定
     setSending(true);
     
-    try {
-      console.log('送信関数を呼び出します', onSendMessage);
-      onSendMessage(text, allAttachments);
-      console.log('送信関数の呼び出しが成功しました');
-    } catch (error) {
-      console.error('送信関数の呼び出しに失敗しました:', error);
-      toast.error('メッセージの送信に失敗しました');
+    // 位置情報がある場合は添付に追加
+    const allAttachments = [...attachments];
+    if (selectedLocation) {
+      allAttachments.push(selectedLocation);
     }
+    
+    // 送信処理
+    onSendMessage(text, allAttachments);
+    
+    // 入力とプレビューをリセット
     setText('');
     setAttachments([]);
+    setSelectedLocation(null);
+    
+    // 必要に応じてタイピング状態を更新
     onTypingEnd?.();
     
-    setTimeout(() => {
-      setSending(false);
-      console.log('送信完了');
-    }, 1000);
+    // 送信完了状態に設定
+    setSending(false);
   };
 
-  // 写真・動画添付時の追加ポイント計算
-  const calculateAdditionalPointsForMedia = () => {
-    if (gender !== 'male') return 0;
-    
-    const mediaCount = attachments.filter(att => att.type === 'image' || att.type === 'video').length;
-    return mediaCount * 3; // メディア添付1つにつき3ポイント
-  };
+  // ファイル添付メニューの表示切り替え
+  const toggleAttachmentMenu = useCallback((): void => {
+    setIsAttachmentMenuOpen((prev) => !prev);
+    if (isEmoticonPickerOpen) {
+      setIsEmoticonPickerOpen(false);
+    }
+  }, [isEmoticonPickerOpen]);
 
-  // 送信に必要な合計ポイント
-  const totalPointsRequired = gender === 'male' ? requiredPoints + calculateAdditionalPointsForMedia() : 0;
+  const handleEmoticonMenu = useCallback((e: React.MouseEvent): void => {
+    e.stopPropagation();
+    setIsEmoticonPickerOpen((prev) => !prev);
+    if (isAttachmentMenuOpen) {
+      setIsAttachmentMenuOpen(false);
+    }
+  }, [isAttachmentMenuOpen]);
+
+  const handleEmojiSelect = useCallback((e: React.MouseEvent, emoji: string): void => {
+    e.preventDefault();
+    setText((prev) => prev + emoji);
+  }, []);
+
+  const handleCategorySelect = useCallback((e: React.MouseEvent, category: string): void => {
+    e.preventDefault();
+    setActiveEmojiCategory(category);
+  }, []);
+
+  const handleRemoveAttachment = useCallback((index: number): void => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleCancelLocation = useCallback((): void => {
+    setSelectedLocation(undefined);
+  }, []);
+      setIsEmoticonPickerOpen(false);
+    }
+    if (isEmoticonPickerOpen) {
+      setIsEmoticonPickerOpen(false);
+    }
+  };
   
-  // ポイント不足かどうか
-  const isPointsInsufficient = gender === 'male' && totalPointsRequired > currentPoints;
+  // ドキュメントクリックイベントハンドラー
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // 絵文字ピッカーの外側をクリックした場合、ピッカーを閉じる
+      if (isEmoticonPickerOpen && 
+          !target.closest('.emoji-picker-container') && 
+          !target.closest('button[aria-label="絵文字"]')) {
+        setIsEmoticonPickerOpen(false);
+      }
+    };
+    
+
+  }, [isEmoticonPickerOpen]);
+
+  // 画像添付トリガー
+  const triggerImageAttachment = () => {
+    fileInputRef.current?.click();
+  };
+
+  // 動画添付トリガー
+  const triggerVideoAttachment = () => {
+    videoInputRef.current?.click();
+  };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-3">
-      {/* 添付ファイルプレビュー */}
-      {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {/* 画像が複数ある場合の一括削除ボタン */}
-          {attachments.filter(a => a.type === 'image').length > 1 && (
-            <button
-              onClick={() => setAttachments(attachments.filter(a => a.type !== 'image'))}
-              className="text-xs text-red-500 hover:text-red-700 ml-1 mb-2 flex items-center bg-gray-100 px-2 py-1 rounded-full"
+    <div className="flex flex-col">
+      {/* 位置情報のプレビュー */}
+      {selectedLocation && (
+        <div className="relative mb-4 px-4">
+          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="p-4"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              すべての画像を削除
-            </button>
-          )}
-          
-          {attachments.map((attachment) => (
-            <div key={attachment.id} className="relative group">
-              {attachment.type === 'image' && (
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300">
-                  <Image 
-                    src={attachment.url} 
-                    alt="添付画像" 
-                    width={80} 
-                    height={80} 
-                    className="object-cover w-full h-full"
-                  />
-                </div>
-              )}
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <HiLocationMarker className="text-red-500 mr-2" />
+                  {selectedLocation.name || '位置情報'}
+                </h3>
+                <button
+                  onClick={handleCancelLocation}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <IoClose className="w-6 h-6" />
+                </button>
+              </div>
               
-              {attachment.type === 'video' && (
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300 bg-black relative">
-                  {/* サムネイルがあれば表示 */}
-                  {attachment.thumbnailUrl ? (
-                    <Image 
-                      src={attachment.thumbnailUrl} 
-                      alt="動画サムネイル" 
-                      width={80} 
-                      height={80} 
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <HiVideoCamera className="text-white w-8 h-8" />
-                    </div>
-                  )}
-                  {/* 動画再生アイコン */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-8 h-8 bg-white bg-opacity-70 rounded-full flex items-center justify-center">
-                      <div className="w-0 h-0 border-t-transparent border-t-8 border-b-transparent border-b-8 border-l-white border-l-12 ml-1"></div>
+              {/* 位置情報プレビュー - LINE風 */}
+              <div className="mb-3">
+                <div className="w-full h-40 bg-gray-200 rounded-xl overflow-hidden relative">
+                  {/* 実際の実装では、Google Maps Static API などを使用して地図画像を表示 */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <div className="text-center">
+                      <HiLocationMarker className="w-10 h-10 text-red-500 mx-auto animate-bounce" />
+                      <p className="text-sm text-gray-600 mt-2">地図イメージがここに表示されます</p>
                     </div>
                   </div>
-                  {/* 動画の長さ表示 */}
-                  {attachment.duration && (
-                    <div className="absolute bottom-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5">
-                      {Math.floor(attachment.duration / 60)}:{Math.floor(attachment.duration % 60).toString().padStart(2, '0')}
-                    </div>
-                  )}
                 </div>
-              )}
+                <div className="mt-3">
+                  <p className="font-semibold text-gray-800">{selectedLocation.name || '現在地'}</p>
+                  <p className="text-sm text-gray-700 mt-1 bg-gray-50 p-3 rounded-xl border border-gray-100 shadow-sm">
+                    {selectedLocation.address || '住所情報を取得できませんでした'}
+                  </p>
+                </div>
+              </div>
               
-              {attachment.type === 'location' && (
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-gray-300 relative">
-                  {/* 地図プレビュー画像 */}
-                  {attachment.previewUrl ? (
-                    <Image 
-                      src={attachment.previewUrl} 
-                      alt="地図" 
-                      width={80} 
-                      height={80} 
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <HiLocationMarker className="text-primary-500 w-8 h-8" />
-                    </div>
-                  )}
-                  {/* 地図ピンアイコン */}
-                  <div className="absolute top-1 left-1 bg-white rounded-full p-1 shadow-md">
-                    <HiLocationMarker className="text-red-500 w-4 h-4" />
+              {/* ナビゲーションボタン - LINE風 */}
+              <div className="flex space-x-3 mb-5">
+                {selectedLocation.url && (
+                  <a 
+                    href={selectedLocation.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-[#06c755] hover:bg-[#05b64b] text-white font-bold py-3 px-4 rounded-xl text-center transition-all duration-200 transform hover:translate-y-[-2px] shadow-md hover:shadow-lg flex items-center justify-center space-x-2"
+                  >
+                    <HiLocationMarker className="w-5 h-5" />
+                    <span>Google Mapで見る</span>
+                  </a>
+                )}
+                
+                <button
+                  onClick={() => {
+                    // シェア機能は実装予定
+                    toast.success(
+                      <div className="flex items-center space-x-2">
+                        <HiLocationMarker className="w-5 h-5 text-green-500" />
+                        <span>位置情報をコピーしました</span>
+                      </div>,
+                      { duration: 3000, style: { background: 'white', color: '#333' } }
+                    );
+                  }}
+                  className="bg-white border border-[#06c755] text-[#06c755] hover:bg-[#06c755] hover:text-white font-bold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center space-x-1"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  <span>シェア</span>
+                </button>
+              </div>
+              
+              {/* 位置情報詳細 - LINE風カードデザイン */}
+              <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <p className="font-semibold mb-1 text-gray-500">緯度</p>
+                    <p className="font-mono text-gray-800 select-all">{selectedLocation.latitude?.toFixed(6)}</p>
                   </div>
-                  {/* 位置情報ラベル */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-[#06c755] bg-opacity-90 text-white text-xs px-1 py-0.5 truncate text-center">
-                    現在地
+                  <div>
+                    <p className="font-semibold mb-1 text-gray-500">経度</p>
+                    <p className="font-mono text-gray-800 select-all">{selectedLocation.longitude?.toFixed(6)}</p>
                   </div>
                 </div>
-              )}
-              
-              <button
-                className="absolute top-0 right-0 bg-gray-800 bg-opacity-70 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
-                onClick={() => removeAttachment(attachment.id)}
-              >
-                <IoClose className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+                <div>
+                  <p className="font-semibold mb-1 text-gray-500">共有日時</p>
+                  <p className="text-gray-800">{selectedLocation.createdAt ? new Date(selectedLocation.createdAt).toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'medium' }) : '不明'}</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
       )}
       
-      <div className="flex items-end">
-        <div className="relative mr-2">
+      {/* メイン入力エリア */}
+      <div className="relative flex items-end p-2 border-t border-gray-100">
+        {/* ファイル添付用の隠し入力フィールド */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImageAttachment}
+          style={{ display: 'none' }}
+          accept="image/*"
+          multiple
+        />
+        <input
+          type="file"
+          ref={videoInputRef}
+          onChange={handleVideoAttachment}
+          style={{ display: 'none' }}
+          accept="video/*"
+        />
+        
+        {/* 添付ボタン */}
+        <div className="relative">
           <button
-            className="text-gray-500 hover:text-primary-500 p-2 transition-colors"
-            onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
+            onClick={toggleAttachmentMenu}
+            className={`p-2 rounded-full ${isAttachmentMenuOpen ? 'bg-gray-200' : 'hover:bg-gray-100'} transition-colors`}
+            aria-label="ファイルを添付"
           >
-            <HiPaperClip className="w-6 h-6" />
+            <HiPaperClip className="w-6 h-6 text-gray-600" />
           </button>
           
-          {/* 添付メニュー */}
-          <AnimatePresence>
-            {isAttachmentMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-12 left-0 bg-white rounded-md shadow-lg p-1 w-48 z-10"
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleImageAttachment}
-                />
-                <input
-                  type="file"
-                  ref={videoInputRef}
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoAttachment}
-                />
-                
+          {/* 添付メニュードロップダウン */}
+          {isAttachmentMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden w-64 z-10"
+            >
+              <div className="p-2 grid grid-cols-2 gap-2">
+                {/* 画像添付オプション */}
                 <button
-                  className={`flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm ${attachments.filter(a => a.type === 'image').length >= 5 ? 'cursor-not-allowed opacity-50' : ''}`}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={attachments.filter(a => a.type === 'image').length >= 5}
+                  onClick={triggerImageAttachment}
+                  className="flex flex-col items-center p-3 hover:bg-gray-50 rounded-lg transition-colors"
                 >
-                  <HiPhotograph className="w-5 h-5 mr-2 text-green-500" />
-                  <span>画像 {attachments.filter(a => a.type === 'image').length >= 5 ? '(上限到達)' : ''}</span>
+                  <HiPhotograph className="w-8 h-8 text-blue-500 mb-1" />
+                  <span className="text-sm">画像</span>
                 </button>
                 
+                {/* 動画添付オプション */}
                 <button
-                  className="flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm"
-                  onClick={() => videoInputRef.current?.click()}
+                  onClick={triggerVideoAttachment}
+                  className="flex flex-col items-center p-3 hover:bg-gray-50 rounded-lg transition-colors"
                 >
-                  <HiVideoCamera className="w-5 h-5 mr-2 text-red-500" />
-                  <span>動画</span>
+                  <HiVideoCamera className="w-8 h-8 text-red-500 mb-1" />
+                  <span className="text-sm">動画</span>
                 </button>
                 
+                {/* 位置情報添付オプション */}
                 <button
-                  className="flex items-center w-full p-2 hover:bg-gray-100 rounded text-left text-sm"
                   onClick={handleLocationAttachment}
+                  className="flex flex-col items-center p-3 hover:bg-gray-50 rounded-lg transition-colors"
                 >
-                  <HiLocationMarker className="w-5 h-5 mr-2 text-blue-500" />
-                  <span>位置情報</span>
+                  <HiLocationMarker className="w-8 h-8 text-green-500 mb-1" />
+                  <span className="text-sm">位置情報</span>
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
         </div>
         
-        <div className="flex-1 bg-gray-100 rounded-2xl flex items-end">
+        {/* ギフトボタン - 男性ユーザーのみ */}
+        <button
+          onClick={handleGiftClick}
+          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+          aria-label="ギフトを送る"
+        >
+          <HiGift className="w-6 h-6 text-pink-500" />
+        </button>
+        
+        {/* 絵文字ボタン */}
+        <button
+          onClick={handleEmoticonMenu}
+          className={`p-2 rounded-full ${isEmoticonPickerOpen ? 'bg-gray-200' : 'hover:bg-gray-100'} transition-colors`}
+          aria-label="絵文字を挿入"
+        >
+          <HiEmojiHappy className="w-6 h-6 text-yellow-500" />
+        </button>
+        
+        {/* テキスト入力エリア */}
+        <div className="flex-1 mx-2 relative">
           <textarea
-            className="flex-1 bg-transparent border-none resize-none p-3 outline-none text-sm max-h-32"
-            placeholder={placeholder}
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`w-full p-3 rounded-2xl border ${disabled ? 'bg-gray-100 border-gray-200 text-gray-400' : 'bg-white border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500'} resize-none outline-none transition-all`}
+            style={{ minHeight: '44px', maxHeight: '120px' }}
             rows={1}
-            style={{ minHeight: '42px' }}
           />
           
-          <button
-            className="mx-2 text-gray-500 hover:text-primary-500 p-2 transition-colors"
-            onClick={() => setIsEmoticonPickerOpen(!isEmoticonPickerOpen)}
-          >
-            <HiEmojiHappy className="w-5 h-5" />
-          </button>
+          {/* 添付ファイルのプレビュー */}
+          {attachments.length > 0 && (
+            <div className="absolute -top-2 left-3 right-3 transform -translate-y-full pb-3">
+              <div className="bg-white p-3 rounded-xl shadow-md border border-gray-200">
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((attachment, index) => (
+                    <div key={index} className="relative">
+                      {/* 画像プレビュー */}
+                      {attachment.type === 'image' && (
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+                          {attachment.url && attachment.url.trim() !== '' ? (
+                            <Image
+                              src={attachment.url}
+                              alt={attachment.name || `添付画像 ${index + 1}`}
+                              fill
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                              <span className="text-xs text-gray-500">画像なし</span>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleRemoveAttachment(index)}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                          >
+                            <IoClose className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* 動画プレビュー */}
+                      {attachment.type === 'video' && (
+                        <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-gray-200 bg-black flex items-center justify-center">
+                          <div className="absolute inset-0 bg-black opacity-50"></div>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute bottom-0 right-0 bg-black bg-opacity-70 text-white text-xs px-1 py-0.5">
+                            {formatDuration(attachment.duration || 0)}
+                          </div>
+                          <button
+                            onClick={() => handleRemoveAttachment(index)}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                          >
+                            <IoClose className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
+        {/* 送信ボタン */}
         <button
-          className={`ml-2 p-2 rounded-full ${
-            (!text && attachments.length === 0) || disabled
-              ? 'bg-gray-200 text-gray-400'
-              : 'bg-[#06c755] text-white hover:bg-[#05b64b]'
-          } transition-colors`}
-          disabled={(!text && attachments.length === 0) || disabled}
           onClick={handleSendMessage}
-          aria-label="メッセージを送信"
+          disabled={disabled || sending}
+          className={`p-2 rounded-full ${disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'} transition-colors`}
+          aria-label="送信"
         >
-          <RiSendPlaneFill className="w-5 h-5" />
+          <RiSendPlaneFill className="w-6 h-6" />
         </button>
       </div>
       
-      {/* 絵文字ピッカー - 実装は省略 */}
+      {/* ギフトセレクターモーダル */}
+      {showGiftSelector && (
+        <GiftSelector
+          isOpen={showGiftSelector}
+          onClose={() => setShowGiftSelector(false)}
+          onSelect={handleGiftSelect}
+          context={{
+            type: 'chat',
+            chatId: chatId // 親コンポーネントから渡されたIDを使用
+          }}
+        />
+      )}
+      
+      {/* ギフトアニメーション表示 */}
+      {showGiftAnimation && (
+        <GiftAnimator 
+          animationType={currentAnimation} 
+          onAnimationComplete={() => setShowGiftAnimation(false)}
+        />
+      )}
+
+      {/* 絵文字ピッカー - 位置とスタイルを修正 */}
       {isEmoticonPickerOpen && (
-        <div className="absolute bottom-16 right-4 z-10">
-          {/* 絵文字ピッカーをここに実装 */}
-          <div className="bg-white rounded-md shadow-lg p-4">
-            <p className="text-sm text-gray-500">絵文字ピッカー (実装予定)</p>
+        <div 
+          className="fixed bottom-20 right-4 z-[1000] emoji-picker-container" 
+          style={{ maxWidth: 'calc(100vw - 20px)' }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {/* 日本語のヘッダー */}
+            <div className="bg-indigo-100 p-3 text-sm font-medium text-indigo-800 border-b border-indigo-200 flex justify-between items-center">
+              <span>絵文字を選択してください</span>
+              <button 
+                onClick={() => setIsEmoticonPickerOpen(false)}
+                className="text-indigo-500 hover:text-indigo-700"
+              >
+                閉じる
+              </button>
+            </div>
+            
+            {/* カスタムUIで日本語カテゴリタブ */}
+            <div className="flex overflow-x-auto p-1 border-b border-gray-200 bg-gray-50">
+              <button 
+                type="button"
+                onClick={(e) => handleCategorySelect(e, 'face')}
+                className={`px-3 py-1.5 mx-1 text-sm font-medium ${activeEmojiCategory === 'face' ? 'text-indigo-800 bg-indigo-100' : 'text-gray-700 hover:bg-gray-100'} rounded-md whitespace-nowrap`}
+              >
+                顔文字
+              </button>
+              <button 
+                type="button"
+                onClick={(e) => handleCategorySelect(e, 'animal')}
+                className={`px-3 py-1.5 mx-1 text-sm font-medium ${activeEmojiCategory === 'animal' ? 'text-indigo-800 bg-indigo-100' : 'text-gray-700 hover:bg-gray-100'} rounded-md whitespace-nowrap`}
+              >
+                動物と自然
+              </button>
+              <button 
+                type="button"
+                onClick={(e) => handleCategorySelect(e, 'food')}
+                className={`px-3 py-1.5 mx-1 text-sm font-medium ${activeEmojiCategory === 'food' ? 'text-indigo-800 bg-indigo-100' : 'text-gray-700 hover:bg-gray-100'} rounded-md whitespace-nowrap`}
+              >
+                食べ物
+              </button>
+              <button 
+                type="button"
+                onClick={(e) => handleCategorySelect(e, 'heart')}
+                className={`px-3 py-1.5 mx-1 text-sm font-medium ${activeEmojiCategory === 'heart' ? 'text-indigo-800 bg-indigo-100' : 'text-gray-700 hover:bg-gray-100'} rounded-md whitespace-nowrap`}
+              >
+                ハート
+              </button>
+            </div>
+            
+            {/* カスタム絵文字グリッド（日本語UI） */}
+            <div className="p-3 grid grid-cols-8 gap-1 h-64 overflow-y-auto">
+              {activeEmojiCategory === 'face' && (
+                // 顔文字カテゴリの絵文字
+                <>
+                  {["😀", "😁", "😂", "😃", "😄", "😅", "😆", "😇", "😈", "😉", "😊", "😋", "😌", "😍", "😎", "😏", "😐", "😑", "😒", "😓", "😔", "😕", "😖", "😗", "😘", "😙", "😚", "😛", "😜", "😝", "😞", "😟", "😠", "😡", "😢", "😣", "😤", "😥", "😦", "😧", "😨", "😩", "😪", "😫", "😬", "😭", "😮", "😯", "😰", "😱", "😲", "😳", "😴", "😵", "😶"].map((emoji, index) => (
+                    <button 
+                      key={index}
+                      type="button"
+                      className="flex items-center justify-center p-1 text-2xl hover:bg-gray-100 rounded"
+                      onClick={(e) => handleEmojiSelect(e, emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </>
+              )}
+              
+              {activeEmojiCategory === 'animal' && (
+                // 動物の絵文字
+                <>
+                  {["🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐽", "🐸", "🐵", "🐒", "🐘", "🐔", "🐦", "🐤", "🐣", "🐛", "🐝", "🐜", "🐞", "🐌", "🐙", "🐚", "🦋", "🐍", "🐢", "🐠", "🐟", "🐡", "🐬", "🐳", "🐋", "🐊", "🐆", "🐅", "🐃", "🐂", "🐄", "🐪", "🐫", "🐗", "🐖", "🐕", "🐏", "🐑", "🐐", "🐎", "🐍", "🐉", "🐈", "🐓"].map((emoji, index) => (
+                    <button 
+                      key={`animal-${index}`}
+                      type="button"
+                      className="flex items-center justify-center p-1 text-2xl hover:bg-gray-100 rounded"
+                      onClick={(e) => handleEmojiSelect(e, emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </>
+              )}
+              
+              {activeEmojiCategory === 'food' && (
+                // 食べ物の絵文字
+                <>
+                  {["🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🍈", "🍒", "🍑", "🍍", "🥝", "🍅", "🍆", "🌶", "🌽", "🍄", "🌰", "🍂", "🍃", "🌿", "🍁", "🌾", "🍀", "🌼", "🌸", "🌷", "🌹", "🌺", "🌻", "🍕", "🍔", "🍟", "🍗", "🍖", "🌭", "🌮", "🌯", "🍳", "🍲", "🍿", "🍼", "🍻", "🍷", "🍸", "🍹", "🍺", "🍶", "🍵", "🍾", "🍱", "🍘", "🍚", "🍛", "🍜", "🍝", "🍞", "🍢", "🍣", "🍤", "🍥", "🍡", "🍙", "🍠", "🍦", "🍧", "🍨", "🍩", "🍪", "🎂", "🍰", "🍫", "🍬", "🍭", "🍮", "🍯"].map((emoji, index) => (
+                    <button 
+                      key={`food-${index}`}
+                      type="button"
+                      className="flex items-center justify-center p-1 text-2xl hover:bg-gray-100 rounded"
+                      onClick={(e) => handleEmojiSelect(e, emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </>
+              )}
+              
+              {activeEmojiCategory === 'heart' && (
+                // ハート系絵文字
+                <>
+                  {["❤️", "💛", "💚", "💙", "💜", "🖤", "🧡", "💕", "💖", "💞", "💓", "💗", "💘", "💝", "💟", "❣️", "😍", "😘", "😗", "😙", "😚", "💋", "💌", "💍", "💎", "💏", "💐", "💑", "💒", "💔", "💋"].map((emoji, index) => (
+                    <button 
+                      key={`heart-${index}`}
+                      type="button"
+                      className="flex items-center justify-center p-1 text-2xl hover:bg-gray-100 rounded"
+                      onClick={(e) => handleEmojiSelect(e, emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

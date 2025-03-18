@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, CheckCheck, Heart, ThumbsUp, SmilePlus, Reply, X, Trash2, Copy, Forward, Link, MapPin, Mic } from 'lucide-react';
 import UrlPreview from './UrlPreview';
 import { useUrlPreviews } from './ChatMessageHelper';
+import GiftImage from '@/app/components/common/GiftImage';
+import MapImage from '@/app/components/common/MapImage';
+import { SafeImage } from '@/app/components/common/SafeImage';
 
 export interface ChatMessageProps {
   id?: string;
@@ -12,7 +15,7 @@ export interface ChatMessageProps {
   isMe: boolean;
   isRead?: boolean;
   avatar?: string;
-  attachments?: {
+  attachments?: ({
     type: 'image' | 'video' | 'link' | 'location' | 'audio';
     url: string;
     previewUrl?: string;
@@ -22,7 +25,15 @@ export interface ChatMessageProps {
     longitude?: number;
     address?: string;
     duration?: number;
-  }[];
+  } | {
+    type: 'gift';
+    url: string;
+    giftId: string;
+    giftName: string;
+    price: number;
+    message?: string;
+    animation?: string;
+  })[];
   reactions?: {
     type: string;
     count: number;
@@ -274,15 +285,82 @@ const ChatMessage = ({
     return (
       <div className="mt-1 space-y-2">
         {attachments.map((attachment, index) => {
-          if (attachment.type === 'image') {
+          if (attachment.type === 'gift') {
+            // ギフト情報の処理
+            const giftId = attachment.giftId || 'default-gift';
+            const giftName = attachment.giftName || '素敵なギフト';
+            const giftMessage = attachment.message || '';
+            
+            // ギフト画像のソースURLを設定
+            // ここでは優先順位：1. attachment.url 2. ギフトID 3. デフォルト
+            // GiftImageコンポーネントは内部で適切なURLを解決します
+            const giftImageSrc = attachment.url && attachment.url.trim() !== '' 
+              ? attachment.url 
+              : giftId;
+            
+            // デバッグログ
+            console.log(`[ChatMessage:Gift] ID: ${giftId}, 提供画像URL: ${giftImageSrc}`);
+            
+            // 安全なギフト名・ギフト画像処理
+            const safeGiftName = giftName || 'ギフト';
+            
+            // ギフトIDがあるが画像がない場合はギフトIDをキーとして使用
+            const effectiveSrc = giftImageSrc || (giftId ? giftId.toLowerCase() : null);
+            
             return (
-              <div key={`${attachment.url}-${index}`} className="relative rounded-lg overflow-hidden max-w-xs">
-                <Image 
-                  src={attachment.url}
+              <div
+                key={`gift-${index}-${giftId}`}
+                className="relative max-w-[240px] mx-auto"
+              >
+                <div className="bg-[#06c755] bg-gradient-to-r from-[#06c755] to-[#04b349] text-white text-center py-2.5 px-4 rounded-t-xl shadow-sm h-10 flex items-center justify-center">
+                  <span className="text-sm font-medium flex items-center justify-center space-x-1">
+                    <span className="text-lg">🎁</span>
+                    <span>ギフトを受け取りました</span>
+                  </span>
+                </div>
+                <div className="bg-white rounded-b-xl overflow-hidden shadow-md">
+                  {/* LINE風のギフト表示 - 改良版GiftImageコンポーネントを使用 */}
+                  <div className="w-[200px] h-[200px] mx-auto flex items-center justify-center p-4">
+                    <GiftImage 
+                      src={effectiveSrc || 'heart'}
+                      alt={safeGiftName}
+                      width={140}
+                      height={140}
+                      priority={true}
+                      style={{ margin: '0 auto' }}
+                    />
+                  </div>
+                  <div className="px-4 pb-4 space-y-2">
+                    <div className="text-center">
+                      <span className="inline-block bg-pink-50 text-pink-600 px-3 py-1 rounded-full text-sm font-medium">
+                        {giftName}
+                      </span>
+                    </div>
+                    {giftMessage && (
+                      <div className="text-sm text-gray-600 text-center bg-gray-50 rounded-xl p-3 border border-gray-100">
+                        {giftMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          } else if (attachment.type === 'image') {
+            // 画像URLのチェックと設定
+            const imageUrl = attachment.url || '/images/placeholder.svg';
+            
+            return (
+              <div key={`image-${index}`} className="relative rounded-lg overflow-hidden max-w-xs">
+                {/* SafeImageコンポーネントを使用して、プロキシとエラーハンドリングを適用 */}
+                <SafeImage 
+                  src={imageUrl}
                   alt="添付画像"
+                  className="w-full max-h-60"
+                  fallbackSrc="/images/placeholder.svg"
+                  defaultAlt="添付画像"
+                  objectFit="cover"
                   width={300}
                   height={200}
-                  className="w-full object-cover max-h-60"
                 />
               </div>
             );
@@ -309,26 +387,39 @@ const ChatMessage = ({
               </div>
             );
           } else if (attachment.type === 'location') {
+            // シンプルな位置情報処理
+            const latitude = attachment.latitude;
+            const longitude = attachment.longitude;
+            
+            const locationTitle = attachment.title || '位置情報';
+            const locationAddress = attachment.address || '';
+            
             return (
-              <div key={`${attachment.url}-${index}`} className="bg-gray-100 rounded-lg p-2 max-w-xs">
+              <div key={`location-${index}`} className="bg-gray-100 rounded-lg p-2 max-w-xs">
                 <div className="flex items-start">
                   <MapPin className="text-blue-500 mt-1 mr-2 flex-shrink-0" size={18} />
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{attachment.title || '位置情報'}</p>
-                    <p className="text-xs text-gray-500 mt-1">{attachment.address}</p>
+                    <p className="text-sm font-medium">{locationTitle}</p>
+                    {locationAddress && (
+                      <p className="text-xs text-gray-500 mt-1">{locationAddress}</p>
+                    )}
                     <a 
-                      href={`https://www.google.com/maps/search/?api=1&query=${attachment.latitude},${attachment.longitude}`} 
+                      href={`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block mt-2 rounded overflow-hidden"
                     >
-                      <Image 
-                        src={attachment.previewUrl || `https://maps.googleapis.com/maps/api/staticmap?center=${attachment.latitude},${attachment.longitude}&zoom=14&size=300x150&markers=color:red%7C${attachment.latitude},${attachment.longitude}&key=YOUR_API_KEY`} 
-                        alt="地図" 
-                        width={300}
-                        height={150}
-                        className="w-full object-cover"
-                      />
+                      <div className="relative w-full h-[150px] bg-gray-200 rounded-t-md overflow-hidden">
+                        {/* MapImageコンポーネントを使用 */}
+                        <MapImage
+                          latitude={latitude}
+                          longitude={longitude}
+                          name={locationTitle}
+                          className="w-full h-full"
+                          height="150px"
+                          objectFit="cover"
+                        />
+                      </div>
                       <div className="bg-[#06c755] text-white text-xs font-medium py-1 px-2 text-center">
                         Googleマップで見る
                       </div>

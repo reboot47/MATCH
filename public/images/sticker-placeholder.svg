@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="200" rx="16" fill="#E5E7EB"/>
+  
+  <!-- Sticker icon - Simple emoji face -->
+  <circle cx="100" cy="100" r="60" fill="#D1D5DB"/>
+  <circle cx="80" cy="85" r="8" fill="#4B5563"/>
+  <circle cx="120" cy="85" r="8" fill="#4B5563"/>
+  <path d="M70 125C82 145 118 145 130 125" stroke="#4B5563" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- Decorative elements to look like a sticker -->
+  <path d="M40 40 L30 30" stroke="#9CA3AF" stroke-width="2"/>
+  <path d="M160 40 L170 30" stroke="#9CA3AF" stroke-width="2"/>
+  <path d="M40 160 L30 170" stroke="#9CA3AF" stroke-width="2"/>
+  <path d="M160 160 L170 170" stroke="#9CA3AF" stroke-width="2"/>
+</svg>

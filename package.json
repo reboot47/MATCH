@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "prisma:seed": "npx prisma db seed",
-    "test:admin-messages": "npx ts-node scripts/test-admin-messages.ts"
+    "test:admin-messages": "npx ts-node scripts/test-admin-messages.ts",
+    "test:image-components": "node scripts/test-image-components.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",
@@ -33,7 +34,8 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
-    "framer-motion": "^12.4.7",
+    "emoji-picker-react": "^4.12.2",
+    "framer-motion": "^12.5.0",
     "js-sha256": "^0.11.0",
     "lucide-react": "^0.477.0",
     "mapbox-gl": "^3.10.0",
@@ -84,6 +86,7 @@
     "path-browserify": "^1.0.1",
     "postcss": "^8.5.3",
     "process": "^0.11.10",
+    "puppeteer": "^24.4.0",
     "stream-browserify": "^3.0.0",
     "tailwindcss": "^3.4.17",
     "ts-jest": "^29.2.6",
