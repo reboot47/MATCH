@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* カスタムユーティリティクラス */
+@layer utilities {
+  .text-gradient-rainbow {
+    background-image: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: rainbow 6s linear infinite;
+  }
+}
+
 :root {
   --foreground-rgb: 128, 128, 128; /* #808080 */
   --background-rgb: 255, 255, 255;
@@ -141,6 +152,152 @@ body.chat-page .fixed.bottom-0.left-0.right-0:not(#chat-input-box) {
   position: relative;
   overflow: hidden;
   touch-action: pan-y;
+}
+
+/* ギフトアニメーションのスタイル */
+.gift-animation {
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 共通アニメーションエフェクト */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ハートアニメーション */
+.hearts-effect {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+
+.heart {
+  position: absolute;
+  background-color: #ff4d6d;
+  width: 30px;
+  height: 30px;
+  transform: rotate(45deg);
+  animation: heartFloat 3s ease-in-out infinite;
+}
+
+.heart:before,
+.heart:after {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #ff4d6d;
+}
+
+.heart:before {
+  top: -15px;
+  left: 0;
+}
+
+.heart:after {
+  top: 0;
+  left: -15px;
+}
+
+.heart1 { top: 20%; left: 20%; animation-delay: 0s; }
+.heart2 { top: 30%; left: 60%; animation-delay: 0.5s; }
+.heart3 { top: 60%; left: 30%; animation-delay: 1s; }
+.heart4 { top: 40%; left: 40%; animation-delay: 1.5s; }
+.heart5 { top: 70%; left: 70%; animation-delay: 2s; }
+
+/* キラキラアニメーション */
+.sparkle-effect {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+
+.sparkle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: #ffdf6c;
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
+  animation: sparkleFloat 2s ease-in-out infinite;
+}
+
+.sparkle1 { top: 25%; left: 25%; animation-delay: 0s; }
+.sparkle2 { top: 35%; left: 65%; animation-delay: 0.4s; }
+.sparkle3 { top: 65%; left: 35%; animation-delay: 0.8s; }
+.sparkle4 { top: 45%; left: 45%; animation-delay: 1.2s; }
+.sparkle5 { top: 75%; left: 75%; animation-delay: 1.6s; }
+
+/* 高級感アニメーション */
+.luxury-effect {
+  position: relative;
+  width: 300px;
+  height: 300px;
+}
+
+.luxury {
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  background-color: #e0c080;
+  border-radius: 50%;
+  box-shadow: 0 0 10px 2px rgba(224, 192, 128, 0.7);
+  animation: luxuryFloat 3s ease-in-out infinite;
+}
+
+.luxury1 { top: 20%; left: 20%; animation-delay: 0s; }
+.luxury2 { top: 30%; left: 70%; animation-delay: 0.6s; }
+.luxury3 { top: 70%; left: 30%; animation-delay: 1.2s; }
+.luxury4 { top: 50%; left: 50%; animation-delay: 1.8s; }
+.luxury5 { top: 80%; left: 80%; animation-delay: 2.4s; }
+
+/* アニメーションキーフレーム */
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  20% { opacity: 0.8; }
+  80% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.7; }
+}
+
+@keyframes heartFloat {
+  0% { transform: translateY(0) rotate(45deg) scale(1); opacity: 0.7; }
+  25% { transform: translateY(-15px) rotate(45deg) scale(1.1); opacity: 1; }
+  50% { transform: translateY(-30px) rotate(45deg) scale(1); opacity: 0.7; }
+  75% { transform: translateY(-45px) rotate(45deg) scale(0.9); opacity: 0.5; }
+  100% { transform: translateY(-60px) rotate(45deg) scale(0.8); opacity: 0; }
+}
+
+@keyframes sparkleFloat {
+  0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.7; }
+  25% { transform: translateY(-10px) scale(1.1) rotate(45deg); opacity: 1; }
+  50% { transform: translateY(-20px) scale(1) rotate(90deg); opacity: 0.7; }
+  75% { transform: translateY(-30px) scale(0.9) rotate(135deg); opacity: 0.5; }
+  100% { transform: translateY(-40px) scale(0.8) rotate(180deg); opacity: 0; }
+}
+
+@keyframes luxuryFloat {
+  0% { transform: translateY(0) scale(1); opacity: 0.7; box-shadow: 0 0 10px 2px rgba(224, 192, 128, 0.7); }
+  25% { transform: translateY(-10px) scale(1.1); opacity: 1; box-shadow: 0 0 15px 3px rgba(224, 192, 128, 0.9); }
+  50% { transform: translateY(-20px) scale(1); opacity: 0.7; box-shadow: 0 0 10px 2px rgba(224, 192, 128, 0.7); }
+  75% { transform: translateY(-30px) scale(0.9); opacity: 0.5; box-shadow: 0 0 8px 1px rgba(224, 192, 128, 0.5); }
+  100% { transform: translateY(-40px) scale(0.8); opacity: 0; box-shadow: 0 0 5px 1px rgba(224, 192, 128, 0.3); }
 }
 
 .swipe-back-indicator {
