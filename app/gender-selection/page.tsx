@@ -141,7 +141,8 @@ import { useUser } from "../contexts/UserContext";
           // Next.jsのrouterではなく、ブラウザのナティブなナビゲーションを使用
           if (isRegistration) {
             if (fromGoogle) {
-              window.location.href = '/profile/setup?provider=google';
+              // Google認証からの場合はマイページにリダイレクト
+              window.location.href = `/mypage?from_google=true&gender_set=${timestamp}`;
             } else {
               // 登録ページへの遷移時にfrom_genderパラメータを追加
               window.location.href = `/register?from_gender=${timestamp}`;

@@ -6,13 +6,14 @@ import { usePathname } from 'next/navigation';
 import { useUser } from '@/components/UserContext';
 import { HiMicrophone, HiPhone, HiPhoneOutgoing, HiVideoCamera, HiGift } from 'react-icons/hi';
 import { BsMicMuteFill, BsCameraVideoOff } from 'react-icons/bs';
+import { IoMdWarning, IoMdInformation, IoMdSpeedometer, IoMdAlert, IoMdWifi, IoMdMic, IoMdMicOff, IoMdRefresh, IoMdCheckmarkCircle } from 'react-icons/io';
 import { BiMessageDetail } from 'react-icons/bi';
 import { motion, AnimatePresence } from 'framer-motion';
 import GiftSelector from '@/app/components/video-call/GiftSelector';
 import ChatPanel from '@/app/components/video-call/ChatPanel';
 import VideoCallControls from '@/app/components/video-call/VideoCallControls';
 import VideoCallTimer from '@/app/components/video-call/VideoCallTimer';
-import { toast } from 'react-hot-toast';
+import { toast } from 'react-toastify';
 
 type VideoCallPageProps = {
   callId: string;
@@ -29,7 +30,7 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoOff, setIsVideoOff] = useState<boolean>(false);
-  const [callStatus, setCallStatus] = useState<'connecting' | 'connected' | 'ended'>('connecting');
+  const [callStatus, setCallStatus] = useState<'connecting' | 'connected' | 'ended' | 'failed'>('connecting');
   const [callDuration, setCallDuration] = useState<number>(0);
   const [remainingPoints, setRemainingPoints] = useState<number>(100); // 初期ポイント（実際の環境ではAPIから取得）
   const [showGiftSelector, setShowGiftSelector] = useState<boolean>(false);
@@ -44,11 +45,64 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
   const [showGiftAnimation, setShowGiftAnimation] = useState<boolean>(false);
   const [currentGift, setCurrentGift] = useState<any>(null);
   const [sentGifts, setSentGifts] = useState<any[]>([]);
+  
+  // メディアアクセス問題の記録
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  
+  // ネットワーク品質状態
+  const [networkQuality, setNetworkQuality] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
+  
+  // ピンチズーム機能の状態管理
+  const [scale, setScale] = useState(1);
+  const [lastDistance, setLastDistance] = useState<number | null>(null);
+  
+  // オーディオレベルモニタリング
+  const [audioLevel, setAudioLevel] = useState(0); // 0-100 の値
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioDataRef = useRef<Uint8Array | null>(null);
+  
+  // 低画質モード
+  const [isLowQualityMode, setIsLowQualityMode] = useState(false);
+  const [isAutoQualityEnabled, setIsAutoQualityEnabled] = useState(true);
 
   // refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // タッチイベント処理
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // 引数となる２点間の距離を計算
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setLastDistance(distance);
+    }
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastDistance !== null) {
+      // 現在の２点間の距離を計算
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      
+      // 距離の変化に基づいてズームレベルを計算
+      const delta = distance / lastDistance;
+      const newScale = Math.max(1, Math.min(3, scale * delta));
+      
+      setScale(newScale);
+      setLastDistance(distance);
+    }
+  };
+  
+  const handleTouchEnd = () => {
+    setLastDistance(null);
+  };
   
   // モックデータ（本番環境ではAPIから取得）
   const mockUser = {
@@ -143,14 +197,87 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
     // メディアデバイスへのアクセスを要求
     const startLocalStream = async () => {
       try {
+        // メディアデバイスにアクセス可能か事前チェック
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideoInput = devices.some(device => device.kind === 'videoinput');
+        const hasAudioInput = devices.some(device => device.kind === 'audioinput');
+        
+        if (!hasVideoInput || !hasAudioInput) {
+          throw new Error('カメラまたはマイクが見つかりません');
+        }
+        
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
         });
         setLocalStream(stream);
         
+        // オーディオレベルモニタリングの設定
+        try {
+          // AudioContextを作成
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          audioContextRef.current = audioContext;
+          
+          // オーディオ入力を取得
+          const audioSource = audioContext.createMediaStreamSource(stream);
+          
+          // 分析用のAnalyserノードを作成
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.8; // レベル変化を滑らかに
+          analyserRef.current = analyser;
+          
+          // オーディオソースを分析器に接続
+          audioSource.connect(analyser);
+          
+          // データ配列の初期化
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          audioDataRef.current = dataArray;
+          
+          // オーディオレベルを定期的に取得
+          const getAudioLevel = () => {
+            if (analyserRef.current && audioDataRef.current && !isMuted) {
+              analyserRef.current.getByteFrequencyData(audioDataRef.current);
+              
+              // 平均値を計算し、0-100のスケールに変換
+              const average = Array.from(audioDataRef.current)
+                .reduce((sum, value) => sum + value, 0) / audioDataRef.current.length;
+              
+              const normalizedLevel = Math.min(100, Math.max(0, Math.round(average / 256 * 100)));
+              setAudioLevel(normalizedLevel);
+            } else if (isMuted) {
+              setAudioLevel(0);
+            }
+            
+            // 定期的に呼び出す
+            requestAnimationFrame(getAudioLevel);
+          };
+          
+          // モニタリング開始
+          getAudioLevel();
+          
+        } catch (err) {
+          console.error('オーディオレベルモニタリングの設定に失敗しました:', err);
+        }
+        
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+          
+          // 映像が正しく表示されているか確認するためのイベントリスナー
+          localVideoRef.current.onloadedmetadata = () => {
+            localVideoRef.current.play()
+              .then(() => {
+                console.log('ローカルビデオの再生を開始しました');
+              })
+              .catch(error => {
+                console.error('ローカルビデオの再生に失敗しました:', error);
+                toast.error('ビデオの再生に問題が発生しました。ページをリロードしてください。');
+              });
+          };
+        } else {
+          console.error('localVideoRef.current が null です');
+          toast.error('ビデオ要素の初期化に失敗しました。ページをリロードしてください。');
+          return;
         }
         
         // 接続ステータスを更新
@@ -164,7 +291,29 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
         
       } catch (err) {
         console.error('メディアデバイスにアクセスできませんでした:', err);
-        toast.error('カメラまたはマイクにアクセスできませんでした。');
+        toast.error('カメラまたはマイクにアクセスできませんでした。ブラウザの設定で許可してください。');
+        
+        // エラーメッセージを保存
+        let errorMessage = 'カメラまたはマイクにアクセスできませんでした';
+        
+        if (err instanceof Error) {
+          if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            errorMessage = 'カメラまたはマイクが見つかりませんでした。デバイスが接続されているか確認してください。';
+          } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            errorMessage = 'カメラまたはマイクへのアクセスが拒否されました。ブラウザの設定で許可してください。';
+          } else if (err.name === 'AbortError' || err.name === 'NotReadableError') {
+            errorMessage = 'カメラまたはマイクにアクセスできませんでした。他のアプリが使用中かもしれません。';
+          } else if (err.name === 'OverconstrainedError') {
+            errorMessage = 'カメラの設定が制約されています。別の解像度や設定を試してください。';
+          } else if (err.name === 'TypeError') {
+            errorMessage = 'ブラウザがカメラやマイクをサポートしていない可能性があります。';
+          }
+        }
+        
+        setMediaError(errorMessage);
+        
+        // エラー状態を設定
+        setCallStatus('failed');
       }
     };
     
@@ -180,9 +329,35 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
         setRemoteStream(mockRemoteStream);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = mockRemoteStream;
+          
+          // 映像が正しく表示されているか確認するためのイベントリスナー
+          remoteVideoRef.current.onloadedmetadata = () => {
+            remoteVideoRef.current.play()
+              .then(() => {
+                console.log('リモートビデオの再生を開始しました');
+              })
+              .catch(error => {
+                console.error('リモートビデオの再生に失敗しました:', error);
+                toast.error('相手のビデオ表示に問題が発生しました。ページをリロードしてください。');
+              });
+          };
+          
+          // 無音状態を設定
+          remoteVideoRef.current.muted = true;
+        } else {
+          console.error('remoteVideoRef.current が null です');
+          toast.error('リモートビデオ要素の初期化に失敗しました。ページをリロードしてください。');
         }
       } catch (err) {
         console.error('リモートストリームの設定に失敗しました:', err);
+        toast.error('接続に問題が発生しました。再試行してください。');
+        // エラー状態を設定
+        setCallStatus('failed');
+        
+        // 5秒後に自動的にホーム画面に戻る
+        setTimeout(() => {
+          endCall('connection_failed');
+        }, 5000);
       }
     };
     
@@ -247,6 +422,196 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
     };
   }, [callStatus]);
   
+  // ネットワーク品質モニタリング
+  useEffect(() => {
+    if (callStatus !== 'connected') return;
+    
+    // ネットワーク状態追跡用変数
+    let previousQuality = networkQuality;
+    let poorQualityCount = 0;
+    let continuousPoorQualityCount = 0; // 連続した低品質のカウント
+    let recoveryAttemptCount = 0; // 自動回復試行回数
+    
+    // 実際のアプリではWebRTCのStatsAPIを使用して本当の品質を測定する
+    // ここではシミュレーション実装
+    const checkNetworkQuality = () => {
+      // モバイルでの接続状態確認（Network Information API）
+      // @ts-ignore - navigator.connection はTypeScriptの型定義にないかもしれない
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      let newQuality: 'excellent' | 'good' | 'fair' | 'poor';
+      
+      if (connection) {
+        const effectiveType = connection.effectiveType; // 4g, 3g, 2g, slow-2g
+        const downlink = connection.downlink; // Mbps
+        
+        if (effectiveType === '4g' && downlink > 5) {
+          newQuality = 'excellent';
+        } else if (effectiveType === '4g' || (effectiveType === '3g' && downlink > 1)) {
+          newQuality = 'good';
+        } else if (effectiveType === '3g' || (effectiveType === '2g' && downlink > 0.5)) {
+          newQuality = 'fair';
+        } else {
+          newQuality = 'poor';
+        }
+      } else {
+        // ランダムシミュレーション（デモ用）
+        const qualities = ['excellent', 'good', 'fair', 'poor'] as const;
+        const randomIndex = Math.floor(Math.random() * qualities.length);
+        newQuality = qualities[randomIndex];
+      }
+      
+      // 品質が悪化した場合の警告と自動回復
+      if (newQuality === 'poor') {
+        // 連続した低品質のカウントを増やす
+        continuousPoorQualityCount++;
+        
+        // 初回の警告のみ表示
+        if (previousQuality !== 'poor') {
+          toast.warning(
+            <div className="flex items-center">
+              <IoMdWarning className="text-yellow-500 mr-2" size={20} />
+              <div>
+                <p className="font-bold">ネットワーク品質が低下しています</p>
+                <p className="text-xs">通話品質が悪化する可能性があります</p>
+              </div>
+            </div>
+          );
+          poorQualityCount++;
+        }
+        
+        // 10秒間低品質が続く場合は低画質モードに自動切り替え
+        if (continuousPoorQualityCount === 2 && !isLowQualityMode && isAutoQualityEnabled) {
+          setIsLowQualityMode(true);
+          toast.info(
+            <div className="flex flex-col">
+              <div className="flex items-center">
+                <IoMdInformation className="text-blue-500 mr-2" size={20} />
+                <p className="font-bold">低画質モードに切り替えました</p>
+              </div>
+              <p className="text-xs ml-7">安定した通話を維持するため、画質を下げています</p>
+              <div className="flex justify-end mt-1">
+                <button 
+                  onClick={() => setIsAutoQualityEnabled(false)} 
+                  className="text-xs py-0.5 px-2 bg-gray-200 text-gray-800 rounded mr-1"
+                >
+                  自動調整をオフにする
+                </button>
+              </div>
+            </div>
+          );
+        }
+        
+        // 20秒間低品質が続く場合の処理
+        if (continuousPoorQualityCount >= 4) {
+          // 自動修復試行回数が2回未満の場合、自動リカバリーを試みる
+          if (recoveryAttemptCount < 2) {
+            toast.info(
+              <div className="flex flex-col items-start">
+                <div className="flex items-center">
+                  <IoMdRefresh className="text-blue-500 mr-2" size={20} />
+                  <p className="font-bold">接続品質を回復しています...</p>
+                </div>
+                <div className="mt-1 ml-7 text-xs">ビデオ設定を最適化しています</div>
+                <div className="w-full flex justify-end mt-1">
+                  <div className="animate-pulse bg-blue-400 h-1 w-full rounded"></div>
+                </div>
+              </div>
+            );
+            
+            // 自動リカバリー処理（実際の実装ではビデオビットレート下げなど）
+            setTimeout(() => {
+              // ランダムな成功/失敗シミュレーション
+              const recoverySuccess = Math.random() > 0.3; // 70%の確率で成功
+              
+              if (recoverySuccess) {
+                setNetworkQuality('good');
+                // 低画質モードが有効なら無効に戻す
+                if (isLowQualityMode && isAutoQualityEnabled) {
+                  setIsLowQualityMode(false);
+                  toast.success(
+                    <div className="flex flex-col">
+                      <div className="flex items-center">
+                        <IoMdCheckmarkCircle className="text-green-500 mr-2" size={20} />
+                        <p className="font-bold">接続品質が改善されました</p>
+                      </div>
+                      <p className="text-xs ml-7">通常品質に戻しました</p>
+                    </div>
+                  );
+                } else {
+                  toast.success(
+                    <div className="flex items-center">
+                      <IoMdCheckmarkCircle className="text-green-500 mr-2" size={20} />
+                      <p className="font-bold">接続品質が改善されました</p>
+                    </div>
+                  );
+                }
+                continuousPoorQualityCount = 0;
+              } else {
+                recoveryAttemptCount++;
+                // 2回目の失敗後、通話終了の提案を表示
+                if (recoveryAttemptCount >= 2) {
+                  toast.error(
+                    <div className="flex flex-col">
+                      <div className="flex items-center">
+                        <IoMdAlert className="text-red-500 mr-2" size={20} />
+                        <p className="font-bold">ネットワーク品質が極端に低下しています</p>
+                      </div>
+                      <p className="text-xs ml-7">通話を終了して再接続することをお勧めします</p>
+                      <button 
+                        onClick={() => endCall('network_error')} 
+                        className="mt-2 bg-red-500 text-white text-xs py-1 px-2 rounded self-end"
+                      >
+                        通話を終了する
+                      </button>
+                    </div>
+                  );
+                }
+              }
+            }, 3000);
+          } else if (continuousPoorQualityCount >= 6) { // 30秒以上続く場合は強い警告
+            toast.error(
+              <div className="flex flex-col">
+                <p className="font-bold">ネットワーク品質が極端に低下しています</p>
+                <p className="text-xs">通話を終了して再接続することをお勧めします</p>
+                <button 
+                  onClick={() => endCall('network_error')} 
+                  className="mt-2 bg-red-500 text-white text-xs py-1 px-2 rounded self-end"
+                >
+                  通話を終了する
+                </button>
+              </div>
+            );
+            continuousPoorQualityCount = 0;
+          }
+        }
+      } else {
+        // 品質が改善された場合はカウンターをリセット
+        continuousPoorQualityCount = 0;
+      }
+      
+      // 長時間が続く場合、一度だけ通話リセットのヒントを表示
+      if (poorQualityCount >= 3) {
+        toast.info(
+          <div className="flex items-center">
+            <IoMdInformation className="text-blue-500 mr-2" size={20} />
+            <div>
+              <p className="font-bold">通話を再開すると品質が改善するかもしれません</p>
+            </div>
+          </div>
+        );
+        poorQualityCount = 0; // リセットして繰り返し表示しない
+      }
+      
+      previousQuality = newQuality;
+      setNetworkQuality(newQuality);
+    };
+    
+    const qualityInterval = setInterval(checkNetworkQuality, 5000);
+    checkNetworkQuality(); // 初回実行
+    
+    return () => clearInterval(qualityInterval);
+  }, [callStatus]);
+  
   // マイクのミュート切り替え
   const toggleMute = () => {
     if (localStream) {
@@ -270,7 +635,7 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
   };
   
   // 通話を終了
-  const endCall = () => {
+  const endCall = (reason?: string) => {
     // ストリームをクリーンアップ
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -282,8 +647,41 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
     setCallStatus('ended');
     setIsConnected(false);
     
+    // 結果の記録と分析のために通話データを送信する（実装例）
+    const callData = {
+      callId,
+      duration: callDuration,
+      endReason: reason || 'user_ended',
+      giftsExchanged: sentGifts.length,
+      pointsSpent: sentGifts.reduce((total, gift) => {
+        // gift.idからポイントを取得します
+        const giftType = gift.id as keyof typeof giftMapping;
+        return total + (giftMapping[giftType]?.points || 0);
+      }, 0),
+      networkQuality: { // ネットワーク品質の統計情報を収集する場所
+        quality: networkQuality,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    // 実際の実装ではここでAPIを呼び出して通話データを送信
+    console.log('Call data saved:', callData);
+    
+    // 通話終了理由に基づいたメッセージ
+    const endMessage = reason === 'connection_lost' 
+      ? '接続が切断されました' 
+      : reason === 'network_error' 
+        ? 'ネットワークエラーが発生しました' 
+        : '通話を終了しました';
+    
+    // 終了理由に応じた通知タイプ
+    if (reason === 'connection_lost' || reason === 'network_error') {
+      toast.error(endMessage);
+    } else {
+      toast.success(endMessage);
+    }
+    
     // リダイレクト
-    toast.success('通話を終了しました');
     setTimeout(() => {
       router.push('/');
     }, 1500);
@@ -455,15 +853,86 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
       
       {/* リモートビデオ（相手） */}
       <div 
-        className={`absolute inset-0 ${fullscreenUser === 'remote' ? 'z-20' : 'z-10'}`}
+        className={`absolute inset-0 ${fullscreenUser === 'remote' ? 'z-20' : 'z-10'} overflow-hidden`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          muted // デモ用にミュート
-          className="w-full h-full object-cover"
-        />
+        <div className="relative w-full h-full">
+          {/* ネットワーク品質に応じた画質調整のシミュレーション */}
+          <div 
+            className={`absolute inset-0 z-10 ${isLowQualityMode ? 'backdrop-blur-[2px]' : networkQuality === 'poor' ? 'backdrop-blur-sm' : networkQuality === 'fair' ? 'backdrop-blur-[0.5px]' : ''} ${networkQuality === 'poor' || isLowQualityMode ? 'bg-black/10' : ''} ${remoteStream ? '' : 'hidden'}`}
+          ></div>
+          
+          {/* ズーム時のピンチ操作ガイド */}
+          {scale > 1 && (
+            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20 bg-black/60 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm flex items-center">
+              {scale.toFixed(1)}x ズーム中
+            </div>
+          )}
+          
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            muted // デモ用にミュート
+            className={`w-full h-full object-cover ${!remoteStream ? 'opacity-0' : ''} 
+              ${isLowQualityMode ? 'saturate-50 contrast-75' : 
+                networkQuality === 'poor' ? 'saturate-50' : 
+                networkQuality === 'fair' ? 'saturate-75' : ''}`}
+            style={{ 
+              transform: `scale(${scale})`, 
+              transformOrigin: 'center',
+              // 低画質モードの場合は解像度を下げる
+              filter: isLowQualityMode ? 'blur(0.5px)' : 'none'
+            }}
+          />
+          
+          {/* ローディングインジケーター */}
+          {(!remoteStream && callStatus === 'connecting') && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
+              <div className="flex flex-col items-center text-center">
+                <div className="animate-spin w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full mb-3"></div>
+                <p className="text-white text-sm font-medium">相手の映像を読み込み中...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* ネットワーク品質インジケーター（常時表示） */}
+          {remoteStream && (
+            <div className="absolute top-4 right-4 z-20 px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm flex items-center gap-1"
+                 style={{
+                   backgroundColor: networkQuality === 'excellent' ? 'rgba(34, 197, 94, 0.7)' : 
+                                    networkQuality === 'good' ? 'rgba(34, 197, 94, 0.7)' : 
+                                    networkQuality === 'fair' ? 'rgba(234, 179, 8, 0.7)' :
+                                    'rgba(239, 68, 68, 0.7)',
+                   color: 'white'
+                 }}>
+              {/* 品質に応じたアイコン表示 */}
+              {networkQuality === 'excellent' || networkQuality === 'good' ? (
+                <IoMdWifi className={networkQuality === 'excellent' ? 'animate-pulse' : ''} />
+              ) : networkQuality === 'fair' ? (
+                <IoMdWarning />
+              ) : (
+                <IoMdAlert className="animate-pulse" />
+              )}
+              
+              {/* 品質レベル表示 */}
+              <div className="flex gap-0.5">
+                <div className={`h-2 w-1 rounded-sm ${networkQuality !== 'poor' ? 'bg-white' : 'bg-white/30'}`}></div>
+                <div className={`h-2 w-1 rounded-sm ${(networkQuality === 'good' || networkQuality === 'excellent') ? 'bg-white' : 'bg-white/30'}`}></div>
+                <div className={`h-2 w-1 rounded-sm ${networkQuality === 'excellent' ? 'bg-white' : 'bg-white/30'}`}></div>
+              </div>
+            </div>
+          )}
+          
+          {/* 低品質警告通知 */}
+          {(remoteStream && networkQuality === 'poor') && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 bg-red-500/80 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm animate-pulse flex items-center">
+              <IoMdWarning className="mr-1" />
+              低速ネットワーク接続
+            </div>
+          )}
       </div>
       
       {/* ローカルビデオ（自分） */}
@@ -474,14 +943,50 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
             : 'bottom-20 right-4 w-1/4 max-w-[200px] aspect-video rounded-lg overflow-hidden z-30 shadow-lg'
         }`}
       >
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : ''}`}
-        />
-        {isVideoOff && (
+        <div className="relative w-full h-full">
+          
+          {/* オーディオレベルインジケーター */}
+          {localStream && (
+            <div className="absolute bottom-2 left-2 z-20 bg-black/40 rounded-full p-1.5 backdrop-blur-sm">
+              <div className="relative w-5 h-5 flex items-center justify-center">
+                {/* レベルアニメーション円 */}
+                <div 
+                  className={`absolute inset-0 rounded-full ${isMuted ? 'bg-gray-500/30' : 'bg-green-500/30'}`}
+                  style={{
+                    transform: `scale(${Math.max(0.6, audioLevel / 100 * 0.8 + 1)})`,
+                    opacity: Math.max(0.3, audioLevel / 100),
+                    transition: 'transform 100ms ease-out, opacity 100ms ease-out'
+                  }}
+                ></div>
+                
+                {/* マイクアイコン */}
+                {isMuted ? (
+                  <IoMdMicOff className="text-white text-xs" />
+                ) : (
+                  <IoMdMic className="text-white text-xs" />
+                )}
+              </div>
+            </div>
+          )}
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : ''} ${!localStream ? 'opacity-0' : ''}`}
+          />
+          
+          {/* ローディングインジケーター */}
+          {(!localStream && callStatus === 'connecting' && !isVideoOff) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm rounded-lg">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full mb-2"></div>
+                <p className="text-white text-xs">カメラ初期化中...</p>
+              </div>
+            </div>
+          )}
+          
+          {isVideoOff && (
           <div className="bg-gray-800 w-full h-full flex items-center justify-center">
             <BsCameraVideoOff size={30} className="text-white" />
           </div>
@@ -504,7 +1009,18 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
       
       {/* 通話時間表示 */}
       <div className="absolute top-4 right-4 z-30">
-        <VideoCallTimer seconds={callDuration} />
+        <div className="inline-flex items-center space-x-1 text-white bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
+          {/* ネットワーク品質インジケーター */}
+          <div className="flex items-center mr-2">
+            <div className={`w-1 h-1.5 ${networkQuality !== 'poor' ? 'bg-green-500' : 'bg-gray-600'} rounded-sm mx-px`}></div>
+            <div className={`w-1 h-2.5 ${networkQuality !== 'poor' && networkQuality !== 'fair' ? 'bg-green-500' : 'bg-gray-600'} rounded-sm mx-px`}></div>
+            <div className={`w-1 h-3.5 ${networkQuality === 'excellent' ? 'bg-green-500' : 'bg-gray-600'} rounded-sm mx-px`}></div>
+          </div>
+          
+          {/* 通話時間 */}
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+          <VideoCallTimer seconds={callDuration} />
+        </div>
       </div>
       
       {/* 送信済みギフト履歴表示 */}
@@ -603,9 +1119,75 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
         )}
       </AnimatePresence>
       
+      {/* 通話ステータス表示 */}
+      {callStatus !== 'connected' && (
+        <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/70 backdrop-blur-md">
+          <div className="bg-gray-900 rounded-xl p-8 max-w-md w-full text-center shadow-xl">
+            {callStatus === 'connecting' && (
+              <>
+                <div className="animate-pulse mb-4 text-6xl">🔄</div>
+                <h2 className="text-2xl font-bold text-white mb-2">接続中...</h2>
+                <p className="text-gray-300 mb-4">カメラとマイクへのアクセスを許可してください</p>
+                <div className="animate-spin inline-block w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full"></div>
+              </>
+            )}
+            
+            {callStatus === 'failed' && (
+              <>
+                <div className="mb-4 text-6xl">❌</div>
+                <h2 className="text-2xl font-bold text-white mb-2">接続に失敗しました</h2>
+                <p className="text-gray-300 mb-4">{mediaError || 'カメラまたはマイクへのアクセスが拒否されました'}</p>
+                
+                <div className="bg-gray-800 p-4 rounded-lg mb-6 text-left">
+                  <h3 className="font-bold text-white mb-2">解決策：</h3>
+                  <ul className="text-gray-300 text-sm list-disc list-inside space-y-1">
+                    <li>ブラウザの設定でカメラとマイクへのアクセスを許可してください</li>
+                    <li>別のアプリがカメラやマイクを使用している場合は終了してください</li>
+                    <li>デバイスが正しく接続されているか確認してください</li>
+                  </ul>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center">
+                  <p className="text-yellow-400 text-sm mb-2">自動的にホーム画面に戻ります...</p>
+                  <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full mb-4"></div>
+                  
+                  <div className="flex space-x-4 justify-center">
+                    <button 
+                      onClick={() => window.location.reload()}
+                    className="bg-secondary-500 hover:bg-secondary-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
+                  >
+                    再試行する
+                  </button>
+                  <button 
+                    onClick={() => router.push('/')}
+                    className="bg-primary-500 hover:bg-primary-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
+                  >
+                    ホームに戻る
+                  </button>
+                </div>
+              </>
+            )}
+            
+            {callStatus === 'ended' && (
+              <>
+                <div className="mb-4 text-6xl">👋</div>
+                <h2 className="text-2xl font-bold text-white mb-2">通話が終了しました</h2>
+                <p className="text-gray-300 mb-6">またお会いしましょう！</p>
+                <button 
+                  onClick={() => router.push('/')}
+                  className="bg-primary-500 hover:bg-primary-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
+                >
+                  ホームに戻る
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      
       {/* ギフトセレクター */}
       <AnimatePresence>
-        {showGiftSelector && (
+        {showGiftSelector && callStatus === 'connected' && (
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -701,6 +1283,22 @@ const VideoCallPageClient = ({ callId }: VideoCallPageProps) => {
                 className="w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center"
               >
                 <BiMessageDetail size={24} className="text-white" />
+              </button>
+              
+              {/* 低画質モード切替ボタン */}
+              <button
+                onClick={() => {
+                  setIsLowQualityMode(!isLowQualityMode);
+                  toast.info(
+                    <div className="text-sm">
+                      {isLowQualityMode ? '通常品質モードに切り替えました' : 'データ節約モードに切り替えました'}
+                    </div>
+                  );
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center ${isLowQualityMode ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'}`}
+                title={isLowQualityMode ? '通常品質に切り替え' : 'データ節約モードに切り替え'}
+              >
+                <IoMdSpeedometer size={24} className="text-white" />
               </button>
             </div>
           </motion.div>

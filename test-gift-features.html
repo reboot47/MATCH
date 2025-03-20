@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LineBuzz ギフト機能テスト</title>
+  <style>
+    body {
+      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #1a73e8;
+    }
+    .gift-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    .gift-item {
+      width: 120px;
+      height: 150px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      transition: transform 0.2s;
+      cursor: pointer;
+      position: relative;
+    }
+    .gift-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    }
+    .gift-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+    .gift-name {
+      font-weight: 500;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+    .gift-points {
+      font-size: 14px;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .gift-animation {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .animation-container {
+      width: 600px;
+      height: 500px;
+      background-color: rgba(0, 0, 0, 0.8);
+      border-radius: 15px;
+      position: relative;
+      margin: 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .user-controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      background-color: #1a73e8;
+      color: white;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #1557b0;
+    }
+    
+    /* アニメーションスタイル */
+    @keyframes floating {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    @keyframes rotating {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    @keyframes shining {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; filter: brightness(1.5); }
+    }
+    
+    @keyframes exploding {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+    
+    @keyframes twinkling {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; filter: brightness(1.3); }
+    }
+    
+    @keyframes rising {
+      0% { transform: translateY(50px); opacity: 0.4; }
+      100% { transform: translateY(-50px); opacity: 0; }
+    }
+    
+    @keyframes flying {
+      0% { transform: translateX(-100px) translateY(50px); opacity: 0; }
+      50% { transform: translateX(0) translateY(0); opacity: 1; }
+      100% { transform: translateX(100px) translateY(-50px); opacity: 0; }
+    }
+    
+    @keyframes burning {
+      0% { filter: brightness(1) hue-rotate(0deg); }
+      50% { filter: brightness(1.5) hue-rotate(45deg); }
+      100% { filter: brightness(1) hue-rotate(90deg); }
+    }
+    
+    @keyframes rainbow {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    
+    @keyframes pulsing {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+    }
+    
+    .floating { animation: floating 0.8s ease-in-out infinite; }
+    .rotating { animation: rotating 0.8s linear infinite; }
+    .shining { animation: shining 0.8s ease-in-out infinite; }
+    .exploding { animation: exploding 0.8s ease-out forwards; }
+    .twinkling { animation: twinkling 0.8s ease-in-out infinite; }
+    .rising { animation: rising 0.8s ease-out forwards; }
+    .flying { animation: flying 1.2s ease-in-out forwards; }
+    .burning { animation: burning 0.8s ease-in-out infinite; }
+    .rainbow { animation: rainbow 1.5s linear infinite; }
+    .pulsing { animation: pulsing 0.8s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LineBuzz ギフト機能テスト</h1>
+    
+    <div class="animation-container" id="animationArea">
+      <!-- ギフトアニメーションがここに表示されます -->
+    </div>
+    
+    <h2>利用可能なギフト</h2>
+    <div class="gift-container" id="giftContainer">
+      <!-- ギフトアイテムは JavaScript で動的に生成されます -->
+    </div>
+    
+    <div class="user-controls">
+      <button class="btn" id="clearBtn">クリア</button>
+    </div>
+  </div>
+
+  <script>
+    // ギフト設定
+    const giftMapping = {
+      heart: { name: 'ハート', points: 5, animation: 'floating', color: 'pink', icon: '❤️' },
+      flower: { name: 'フラワー', points: 10, animation: 'rotating', color: 'green', icon: '🌸' },
+      crown: { name: 'クラウン', points: 25, animation: 'shining', color: 'gold', icon: '👑' },
+      diamond: { name: 'ダイヤモンド', points: 50, animation: 'exploding', color: 'blue', icon: '💎' },
+      star: { name: 'スター', points: 30, animation: 'twinkling', color: 'yellow', icon: '⭐' },
+      cake: { name: 'ケーキ', points: 20, animation: 'rising', color: 'pink', icon: '🎂' },
+      rocket: { name: 'ロケット', points: 40, animation: 'flying', color: 'red', icon: '🚀' },
+      fire: { name: 'ファイヤー', points: 15, animation: 'burning', color: 'orange', icon: '🔥' },
+      rainbow: { name: 'レインボー', points: 60, animation: 'rainbow', color: 'purple', icon: '🌈' },
+      kiss: { name: 'キス', points: 35, animation: 'pulsing', color: 'red', icon: '💋' }
+    };
+    
+    const giftContainer = document.getElementById('giftContainer');
+    const animationArea = document.getElementById('animationArea');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    // ギフトアイテムを動的に生成
+    Object.entries(giftMapping).forEach(([key, gift]) => {
+      const giftItem = document.createElement('div');
+      giftItem.className = 'gift-item';
+      giftItem.innerHTML = `
+        <div class="gift-icon">${gift.icon}</div>
+        <div class="gift-name">${gift.name}</div>
+        <div class="gift-points">
+          <span>💰</span>${gift.points}ポイント
+        </div>
+      `;
+      giftItem.addEventListener('click', () => sendGift(key));
+      giftContainer.appendChild(giftItem);
+    });
+    
+    // ギフト送信処理
+    function sendGift(giftType) {
+      const gift = giftMapping[giftType];
+      
+      if (!gift) {
+        console.error('選択されたギフトが見つかりません');
+        return;
+      }
+      
+      console.log(`${gift.name}を送りました！`);
+      
+      // ギフトアニメーション表示
+      const giftElement = document.createElement('div');
+      giftElement.className = `gift-animation ${gift.animation}`;
+      giftElement.style.color = gift.color;
+      giftElement.style.fontSize = '100px';
+      giftElement.textContent = gift.icon;
+      
+      animationArea.appendChild(giftElement);
+      
+      // アニメーション終了後に要素を削除
+      setTimeout(() => {
+        giftElement.remove();
+      }, 3000);
+    }
+    
+    // クリアボタン
+    clearBtn.addEventListener('click', () => {
+      animationArea.innerHTML = '';
+    });
+  </script>
+</body>
+</html>

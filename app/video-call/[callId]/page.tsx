@@ -1,4 +1,4 @@
-import VideoCallClient from './VideoCallClient';
+import VideoCallClient from './VideoCallClientToastify';
 
 type PageProps = {
   params: Promise<{ callId: string }>;

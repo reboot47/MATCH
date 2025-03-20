@@ -87,10 +87,19 @@ module.exports = {
         'slide-down': 'slideDown 0.3s ease-in-out',
         'fade-in-up': 'fadeInUp 0.5s ease-out',
         'float': 'float 3s ease-in-out infinite',
+        'floating': 'floating 0.8s ease-in-out infinite',
         'rotate': 'rotate 4s linear infinite',
+        'rotating': 'rotating 0.8s linear infinite',
         'shine': 'shine 2s ease-in-out infinite',
+        'shining': 'shining 0.8s ease-in-out infinite',
+        'exploding': 'exploding 0.8s ease-out forwards',
         'twinkle': 'twinkle 2s ease-in-out infinite',
+        'twinkling': 'twinkling 0.8s ease-in-out infinite',
+        'rising': 'rising 0.8s ease-out forwards',
+        'flying': 'flying 1.2s ease-in-out forwards',
+        'burning': 'burning 0.8s ease-in-out infinite',
         'rainbow': 'rainbow 6s linear infinite',
+        'pulsing': 'pulsing 0.8s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -113,7 +122,15 @@ module.exports = {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-10px)' },
         },
+        floating: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-20px)' },
+        },
         rotate: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
+        rotating: {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
@@ -121,13 +138,44 @@ module.exports = {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
           '50%': { opacity: '0.7', transform: 'scale(1.1)' },
         },
+        shining: {
+          '0%, 100%': { opacity: '0.7' },
+          '50%': { opacity: '1', filter: 'brightness(1.5)' },
+        },
+        exploding: {
+          '0%': { transform: 'scale(0.3)', opacity: '0' },
+          '50%': { transform: 'scale(1.2)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '0.7' },
+        },
         twinkle: {
           '0%, 100%': { opacity: '0.7' },
           '50%': { opacity: '1' },
         },
+        twinkling: {
+          '0%, 100%': { opacity: '0.4' },
+          '50%': { opacity: '1', filter: 'brightness(1.3)' },
+        },
+        rising: {
+          '0%': { transform: 'translateY(50px)', opacity: '0.4' },
+          '100%': { transform: 'translateY(-50px)', opacity: '0' },
+        },
+        flying: {
+          '0%': { transform: 'translateX(-100px) translateY(50px)', opacity: '0' },
+          '50%': { transform: 'translateX(0) translateY(0)', opacity: '1' },
+          '100%': { transform: 'translateX(100px) translateY(-50px)', opacity: '0' },
+        },
+        burning: {
+          '0%': { filter: 'brightness(1) hue-rotate(0deg)' },
+          '50%': { filter: 'brightness(1.5) hue-rotate(45deg)' },
+          '100%': { filter: 'brightness(1) hue-rotate(90deg)' },
+        },
         rainbow: {
           '0%': { filter: 'hue-rotate(0deg)' },
           '100%': { filter: 'hue-rotate(360deg)' },
+        },
+        pulsing: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.3)' },
         },
       },
       borderRadius: {

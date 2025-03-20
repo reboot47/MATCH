@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { HiX, HiCurrencyYen } from 'react-icons/hi';
 import { BsCoin } from 'react-icons/bs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-hot-toast';
+import { toast } from 'react-toastify';
 
 interface GiftSelectorProps {
   onClose: () => void;
@@ -129,7 +129,22 @@ const GiftSelector: React.FC<GiftSelectorProps> = ({ onClose, onSelectGift }) =>
     }
     
     if (userPoints < selectedGift.points) {
-      toast.error(`ポイントが足りません。あと${selectedGift.points - userPoints}ポイント必要です。`);
+      const pointsNeeded = selectedGift.points - userPoints;
+      toast.error(
+        <div className="flex flex-col items-center">
+          <div className="font-bold mb-1">ポイントが足りません</div>
+          <div>あと <span className="text-yellow-300 font-bold">{pointsNeeded}</span> ポイント必要です</div>
+          <button 
+            className="mt-2 bg-blue-500 hover:bg-blue-600 text-white text-xs py-1 px-3 rounded-full"
+            onClick={() => {
+              // ポイント購入ページにリンクするなどの実装が可能
+              console.log('ポイント購入ページへ');
+            }}
+          >
+            ポイント購入
+          </button>
+        </div>
+      );
       return;
     }
     
@@ -256,8 +271,8 @@ const GiftSelector: React.FC<GiftSelectorProps> = ({ onClose, onSelectGift }) =>
           </div>
         )}
         
-        {/* 送信ボタン - 改善版 */}
-        <div className="mt-5">
+        {/* ボタングループ - 送信とキャンセル */}
+        <div className="mt-5 space-y-3">
           <button
             onClick={handleSendGift}
             disabled={!selectedGift || userPoints < (selectedGift?.points || 0) || isProcessing}
@@ -284,6 +299,15 @@ const GiftSelector: React.FC<GiftSelectorProps> = ({ onClose, onSelectGift }) =>
             ) : (
               `${selectedGift.name}を送る`
             )}
+          </button>
+          
+          {/* キャンセルボタン - 常に表示 */}
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="w-full py-3 rounded-lg font-medium border border-gray-300 dark:border-gray-600 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+          >
+            キャンセル
           </button>
           
           {selectedGift && userPoints >= selectedGift.points && !isProcessing && (

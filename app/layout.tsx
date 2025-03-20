@@ -2,7 +2,9 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
 import Providers from "@/providers";
-import { Toaster } from 'react-hot-toast';
+// import { Toaster } from 'react-hot-toast';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { UserProvider } from "./contexts/UserContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { MissionProvider } from "./contexts/MissionContext";
@@ -94,27 +96,29 @@ export default function RootLayout({
               </MissionProvider>
             </NotificationProvider>
           </UserProvider>
-          <Toaster position="top-right" toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#363636',
+          <ToastContainer
+            position="top-center"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="dark"
+            toastStyle={{
+              background: 'rgba(30, 41, 59, 0.95)',
               color: '#fff',
-            },
-            success: {
-              duration: 3000,
-              iconTheme: {
-                primary: '#10B981',
-                secondary: 'white',
-              }
-            },
-            error: {
-              duration: 5000,
-              iconTheme: {
-                primary: '#EF4444',
-                secondary: 'white',
-              }
-            }
-          }} />
+              borderRadius: '0.75rem',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
+              fontSize: '0.95rem',
+              border: '1px solid rgba(100, 116, 139, 0.2)'
+            }}
+            progressStyle={{
+              background: 'linear-gradient(to right, #10b981, #3b82f6)'
+            }}
+          />
         </Providers>
       </body>
     </html>

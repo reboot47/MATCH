@@ -174,12 +174,12 @@ export default function RegisterPage() {
         sessionStorage.removeItem('redirecting_to_gender');
       }
 
-      // Google認証後、性別選択ページにリダイレクト
-      // 型別選択の情報を保持し、直接マイページかプロフィール設定ページに進む
+      // Google認証後、マイページにリダイレクト
+      // 性別選択の情報を保持
       const storedGender = localStorage.getItem('linebuzz_selected_gender');
       if (storedGender) {
-        // Google認証後に直接プロフィール設定ページにリダイレクト
-        localStorage.setItem('auth_redirect', `/profile/setup?provider=google&gender=${storedGender}`);
+        // Google認証後に直接マイページにリダイレクト
+        localStorage.setItem('auth_redirect', '/mypage');
       } else {
         // 性別がない場合は引き続き性別選択ページへ
         localStorage.setItem('auth_redirect', '/gender-selection?register=true&provider=google');
